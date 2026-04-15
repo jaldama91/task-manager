@@ -417,7 +417,14 @@ function TaskModal(props){
   var inp={width:"100%",padding:"8px 10px",borderRadius:7,border:"0.5px solid #DDD",background:WH,fontSize:14,color:BLK,boxSizing:"border-box"};
   var lb={fontSize:12,color:"#666",display:"block",marginBottom:4,fontWeight:500};
   var nodes=TREE.filter(function(n){return n.subs.some(function(c){return uctxs.indexOf(c.id)>=0;});});
-  var assignable=Object.keys(USERS).filter(function(u){if(u==="Gin"&&!USERS[cu].canGin&&cu!=="Gin")return false;if(u==="Sarah"&&!USERS[cu].canSarah&&cu!=="Sarah")return false;return USERS[u].ctxs.indexOf(f.ctx)>=0||u===cu;});
+  var assignable=Object.keys(USERS).filter(function(u){
+    if(u==="Gin"&&!USERS[cu].canGin&&cu!=="Gin")return false;
+    if(u==="Sarah"&&!USERS[cu].canSarah&&cu!=="Sarah")return false;
+    if(u===cu)return true;
+    if(u==="Sarah"&&USERS[cu].canSarah)return true;
+    if(u==="Gin"&&USERS[cu].canGin)return true;
+    return USERS[u].ctxs.indexOf(f.ctx)>=0;
+  });
   var isPersonal=isPers(f.ctx);
 
   var catNodes=nodes.map(function(node){
