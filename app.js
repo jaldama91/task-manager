@@ -260,6 +260,7 @@ function PBadge(p){
 
 // ── PIN data ───────────────────────────────────────────────────────────────
 var PINS={Jhonatan:"2013",Sarah:"0222",Gin:"0221"};
+var LOGO_B64="data:image/png;base64,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";
 
 // ── PinScreen ──────────────────────────────────────────────────────────────
 function PinScreen(props){
@@ -287,7 +288,7 @@ function PinScreen(props){
   }
   var boxStyle=function(i){return{width:52,height:60,borderRadius:10,textAlign:"center",fontSize:26,fontWeight:700,border:err?"2px solid #EF4444":digits[i]?"2px solid "+u.color:"1.5px solid #DDD",background:err?"#FEF2F2":digits[i]?u.bg:"#FAFAFA",color:"transparent",caretColor:u.color,outline:"none",transition:"border-color .15s,background .15s"};};
   return ce("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,"+MD+" 0%,"+MB+" 60%,"+ML+" 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 16px"}},
-    ce("div",{style:{marginBottom:28}},ColorBar()),
+    ce("img",{src:LOGO_B64,alt:"Nuve",style:{height:44,marginBottom:28,filter:"brightness(0) invert(1)",opacity:.95}}),
     ce("div",{style:{background:"rgba(255,255,255,.97)",borderRadius:20,padding:"36px 40px",display:"flex",flexDirection:"column",alignItems:"center",gap:24,boxShadow:"0 8px 40px rgba(0,0,0,.15)",minWidth:300}},
       ce("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:10}},
         ce("div",{style:{width:60,height:60,borderRadius:"50%",background:u.bg,border:"2.5px solid "+u.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:u.color}},u.ini),
@@ -319,7 +320,7 @@ function Login(props){
   var [selected,setSelected]=useState(null);
   if(selected){return ce(PinScreen,{name:selected,onSuccess:function(){props.onLogin(selected);},onBack:function(){setSelected(null);}});}
   return ce("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,"+MD+" 0%,"+MB+" 60%,"+ML+" 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 16px"}},
-    ce("div",{style:{marginBottom:28}},ColorBar()),
+    ce("img",{src:LOGO_B64,alt:"Nuve",style:{height:44,marginBottom:32,filter:"brightness(0) invert(1)",opacity:.95}}),
     ce("div",{style:{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}},
       Object.keys(USERS).map(function(name){
         var u=USERS[name];
@@ -665,7 +666,8 @@ function App(){
   });
   var base=tasks.filter(function(t){
     var inCtx=actCtxs.indexOf(t.ctx)>=0;
-    var sv=t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah");
+    var isPersonalSel=sel==="All"||sel==="P"||PI.indexOf(sel)>=0;
+    var sv=t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah")&&isPersonalSel;
     if(!inCtx&&!sv)return false;
     if(af!=="All"&&!t.shared&&t.to!==af)return false;
     return true;
