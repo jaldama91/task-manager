@@ -251,8 +251,17 @@ function dbToTask(row){
     due:row.due||"", status:row.status, notes:row.notes||"",
     subtasks:row.subtasks||[], recur:row.recur||"None",
     recur_deadline:row.recur_deadline||"None",
-    by:row.by_user, to:row.to_user, shared:!!row.shared
+    by:row.by_user, to:row.to_user, shared:!!row.shared,
+    created_at:row.created_at||""
   };
+}
+// displayDate: the date used for calendar/quarterly bucketing
+// Use due date if set, otherwise fall back to created_at date
+function displayDate(t){
+  if(t._startDate) return t._startDate;
+  if(t.due) return t.due;
+  if(t.created_at) return t.created_at.slice(0,10);
+  return null;
 }
 function taskToDb(t,byUser){
   return {
@@ -758,8 +767,11 @@ function CalendarView(props){
   var todayStr=now.getFullYear()+"-"+padZ(now.getMonth()+1)+"-"+padZ(now.getDate());
   var firstDay=new Date(yr,mon,1).getDay();
   var daysInMonth=new Date(yr,mon+1,0).getDate();
-  var myTasks=tasks.filter(function(t){var d=t._startDate||t.due;return d&&t.status!=="Done"&&(t.to===cu||t._virtual||(t.shared&&isPers(t.ctx)));});
-  var taskCount=myTasks.filter(function(t){var d=t._startDate||t.due;return d&&d.slice(0,7)===monStr;}).length;
+  var myTasks=tasks.filter(function(t){
+    var d=displayDate(t);
+    return d&&t.status!=="Done"&&(t.to===cu||t._virtual||(t.shared&&isPers(t.ctx)));
+  });
+  var taskCount=myTasks.filter(function(t){var d=displayDate(t);return d&&d.slice(0,7)===monStr;}).length;
   function prevMon(){if(mon===0){setMon(11);setYr(yr-1);}else{setMon(mon-1);}}
   function nextMon(){if(mon===11){setMon(0);setYr(yr+1);}else{setMon(mon+1);}}
   var cells=[];var i;
@@ -773,7 +785,7 @@ function CalendarView(props){
     var cellEls=rowCells.map(function(day,ci){
       if(!day){return ce("div",{key:"e"+ci,style:{minHeight:72}});}
       var ds=monStr+"-"+padZ(day);
-      var dayTasks=myTasks.filter(function(t){var d=t._startDate||t.due;return d===ds;});
+      var dayTasks=myTasks.filter(function(t){var d=displayDate(t);return d===ds;});
       var isToday=ds===todayStr;
       var isOver=new Date(ds)<now&&!isToday;
       var todayD=new Date().toISOString().slice(0,10);
@@ -869,32 +881,35 @@ function QuarterlyView(props){
   function expandRecurring(tasks,year){
     var expanded=[];
     tasks.forEach(function(t){
-      // Always include the base task if it has a due date in this year
-      if(t.due&&t.due.slice(0,4)===String(year)){
+      var baseDate=t.due||(t.created_at?t.created_at.slice(0,10):"");
+      if(!baseDate)return;
+      // Include base task if it falls in this year (by displayDate)
+      var dd=displayDate(t)||(t.created_at?t.created_at.slice(0,10):"");
+      if(dd&&dd.slice(0,4)===String(year)){
         expanded.push(Object.assign({},t,{_expanded:false}));
-      } else if(t.due&&t.due.slice(0,4)!==String(year)&&(!t.recur||t.recur==="None")){
-        return; // skip non-recurring tasks not in this year
+      } else if((!t.recur||t.recur==="None")){
+        // Non-recurring tasks only show in their own year
+        if(dd&&dd.slice(0,4)===String(year)) expanded.push(Object.assign({},t,{_expanded:false}));
+        return;
       }
       // Expand recurring tasks
-      if(t.recur&&t.recur!=="None"&&t.due){
-        var cur=t.due;
+      if(t.recur&&t.recur!=="None"&&baseDate){
+        var cur=baseDate;
         var safety=0;
         while(safety<60){
           safety++;
           var next=addInt(cur,t.recur);
           if(!next)break;
           if(next.slice(0,4)>String(year))break;
-          if(next.slice(0,4)===String(year)){
-            // Don't duplicate the base task
-            if(next!==t.due){
-              var qDue=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next,t.recur_deadline)||next:next;expanded.push(Object.assign({},t,{id:t.id+"_"+next,due:qDue,_startDate:next,_expanded:true,_baseId:t.id}));
-            }
+          if(next.slice(0,4)===String(year)&&next!==baseDate){
+            var qDue=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next,t.recur_deadline)||next:next;
+            expanded.push(Object.assign({},t,{id:t.id+"_"+next,due:qDue,_startDate:next,_expanded:true,_baseId:t.id}));
           }
           cur=next;
         }
-        // Also project forward from any start date
-        if(t.due.slice(0,4)<String(year)){
-          var cur2=t.due;
+        // Project forward from dates before this year
+        if(baseDate.slice(0,4)<String(year)){
+          var cur2=baseDate;
           var safety2=0;
           while(safety2<100){
             safety2++;
@@ -902,19 +917,19 @@ function QuarterlyView(props){
             if(!next2)break;
             if(next2.slice(0,4)>String(year))break;
             if(next2.slice(0,4)===String(year)){
-              var qDue2=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next2,t.recur_deadline)||next2:next2;expanded.push(Object.assign({},t,{id:t.id+"_"+next2,due:qDue2,_startDate:next2,_expanded:true,_baseId:t.id}));
+              var qDue2=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next2,t.recur_deadline)||next2:next2;
+              expanded.push(Object.assign({},t,{id:t.id+"_"+next2,due:qDue2,_startDate:next2,_expanded:true,_baseId:t.id}));
             }
             cur2=next2;
           }
         }
       }
     });
-    // Deduplicate by id+due
+    // Deduplicate by id
     var seen={};
     return expanded.filter(function(t){
-      var key=t.id;
-      if(seen[key])return false;
-      seen[key]=true;
+      if(seen[t.id])return false;
+      seen[t.id]=true;
       return true;
     });
   }
@@ -930,13 +945,13 @@ function QuarterlyView(props){
 
   var qEls=quarters.map(function(q){
     var qTasks=allExpanded.filter(function(t){
-      var d=t._startDate||t.due;
+      var d=displayDate(t);
       if(!d)return false;
       var m=parseInt(d.slice(5,7))-1;
       return q.months.indexOf(m)>=0;
     }).sort(function(a,b){
-      var da=a._startDate||a.due||"9999";
-      var db2=b._startDate||b.due||"9999";
+      var da=displayDate(a)||"9999";
+      var db2=displayDate(b)||"9999";
       return da>db2?1:-1;
     });
 
@@ -948,7 +963,7 @@ function QuarterlyView(props){
           ce("div",{style:{width:6,height:6,borderRadius:"50%",background:PRI[t.pri]?PRI[t.pri].dot:"#DDD",flexShrink:0}}),
           ce("div",{style:{flex:1,fontSize:12,fontWeight:500,color:t.status==="Done"?"#aaa":BLK,textDecoration:t.status==="Done"?"line-through":"none"}},t.title),
           ce("span",{style:{fontSize:10,padding:"1px 6px",borderRadius:4,background:cc.bg,color:cc.tx}},ctxLbl(t.ctx)),
-          ce("span",{style:{fontSize:10,color:"#aaa"}},fmt(t.due)),
+          ce("span",{style:{fontSize:10,color:"#aaa"}},fmt(displayDate(t))),
           t._expanded?ce("span",{style:{fontSize:9,color:RC.tx,background:RC.bg,borderRadius:4,padding:"1px 5px"}},Ico("recur",9,RC.tx)):null
         );
       });
