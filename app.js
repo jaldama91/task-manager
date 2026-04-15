@@ -20,9 +20,9 @@ var TREE=[
 ];
 
 var USERS={
-  Jhonatan:{ini:"JA",color:"#00965E",bg:"#E0F7EE",ctxs:AI,          canGin:true },
-  Sarah:   {ini:"SA",color:"#0F6E9A",bg:"#E0F2FB",ctxs:PI,           canGin:false},
-  Gin:     {ini:"GN",color:"#7C3AED",bg:"#EDE9FE",ctxs:NI.concat(KI),canGin:false},
+  Jhonatan:{ini:"JA",color:"#00965E",bg:"#E0F7EE",ctxs:AI,          canGin:true, canSarah:true },
+  Sarah:   {ini:"SA",color:"#0F6E9A",bg:"#E0F2FB",ctxs:PI,           canGin:false,canSarah:false},
+  Gin:     {ini:"GN",color:"#7C3AED",bg:"#EDE9FE",ctxs:NI.concat(KI),canGin:false,canSarah:false},
 };
 
 var PK=["High","Medium","Low"];
@@ -417,7 +417,7 @@ function TaskModal(props){
   var inp={width:"100%",padding:"8px 10px",borderRadius:7,border:"0.5px solid #DDD",background:WH,fontSize:14,color:BLK,boxSizing:"border-box"};
   var lb={fontSize:12,color:"#666",display:"block",marginBottom:4,fontWeight:500};
   var nodes=TREE.filter(function(n){return n.subs.some(function(c){return uctxs.indexOf(c.id)>=0;});});
-  var assignable=Object.keys(USERS).filter(function(u){if(u==="Gin"&&!USERS[cu].canGin&&cu!=="Gin")return false;return USERS[u].ctxs.indexOf(f.ctx)>=0||u===cu;});
+  var assignable=Object.keys(USERS).filter(function(u){if(u==="Gin"&&!USERS[cu].canGin&&cu!=="Gin")return false;if(u==="Sarah"&&!USERS[cu].canSarah&&cu!=="Sarah")return false;return USERS[u].ctxs.indexOf(f.ctx)>=0||u===cu;});
   var isPersonal=isPers(f.ctx);
 
   var catNodes=nodes.map(function(node){
