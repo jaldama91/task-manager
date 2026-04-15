@@ -45,6 +45,7 @@ CTC["Misc Personal"]={bg:"#F1F5F9",tx:"#475569",bd:"#CBD5E1"};
 var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#F59E0B",bg:"#FFFBEB",tx:"#92400E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"}};
 var CC={"To Do":{ac:"#111",tx:"#111",bg:"#F0F0EE"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
 var RC={bg:"#D4F7E5",tx:"#00965E",bd:"#2AD870"};
+function ctxLbl(ctx){return ctx.indexOf(":")>=0?ctx.split(":")[1]:ctx;}
 var DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 var ORDINALS=["1st","2nd","3rd","4th","5th"];
 var COLS=["To Do","In Progress","Done"];
@@ -54,16 +55,6 @@ var MB="#2AD870",ML="#8FF9BA",MD="#00965E",BLK="#111",WH="#fff";
 
 function fmt(s){if(!s)return "";var p=s.split("-");return p[1]+"/"+p[2]+"/"+p[0].slice(2);}
 function padZ(n){return String(n).padStart(2,"0");}
-function addInt(d,r){
-  var dt=new Date(d+"T12:00:00");
-  if(r==="Daily")    dt.setDate(dt.getDate()+1);
-  if(r==="Weekly")   dt.setDate(dt.getDate()+7);
-  if(r==="Biweekly") dt.setDate(dt.getDate()+14);
-  if(r==="Monthly")  dt.setMonth(dt.getMonth()+1);
-  if(r==="Quarterly")dt.setMonth(dt.getMonth()+3);
-  if(r==="Annually") dt.setFullYear(dt.getFullYear()+1);
-  return dt.toISOString().slice(0,10);
-}
 // ── Recur helpers ──────────────────────────────────────────────────────────
 // recur format:  "None" | "WEEKLY:Monday" | "MONTHLY_DATE:15" | "MONTHLY_DAY:2:Tuesday" | "EVERY_N:10"
 function recurLabel(r){
