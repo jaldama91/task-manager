@@ -45,7 +45,8 @@ CTC["Misc Personal"]={bg:"#F1F5F9",tx:"#475569",bd:"#CBD5E1"};
 var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#F59E0B",bg:"#FFFBEB",tx:"#92400E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"}};
 var CC={"To Do":{ac:"#111",tx:"#111",bg:"#F0F0EE"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
 var RC={bg:"#D4F7E5",tx:"#00965E",bd:"#2AD870"};
-var RO=["None","Daily","Weekly","Biweekly","Monthly","Quarterly","Annually"];
+var DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+var ORDINALS=["1st","2nd","3rd","4th","5th"];
 var COLS=["To Do","In Progress","Done"];
 var MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
 var DN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -63,7 +64,114 @@ function addInt(d,r){
   if(r==="Annually") dt.setFullYear(dt.getFullYear()+1);
   return dt.toISOString().slice(0,10);
 }
-function ctxLbl(ctx){return ctx.indexOf(":")>=0?ctx.split(":")[1]:ctx;}
+// ── Recur helpers ──────────────────────────────────────────────────────────
+// recur format:  "None" | "WEEKLY:Monday" | "MONTHLY_DATE:15" | "MONTHLY_DAY:2:Tuesday" | "EVERY_N:10"
+function recurLabel(r){
+  if(!r||r==="None")return null;
+  var p=r.split(":");
+  if(p[0]==="WEEKLY")      return "Every "+p[1];
+  if(p[0]==="MONTHLY_DATE")return "Every "+p[1]+(p[1]==="1"?"st":p[1]==="2"?"nd":p[1]==="3"?"rd":"th");
+  if(p[0]==="MONTHLY_DAY") return "Every "+ORDINALS[parseInt(p[1])-1]+" "+p[2];
+  if(p[0]==="EVERY_N")     return "Every "+p[1]+" days";
+  return r;
+}
+function addInt(d,r){
+  if(!d||!r||r==="None")return null;
+  var dt=new Date(d+"T12:00:00");
+  var p=r.split(":");
+  if(p[0]==="EVERY_N"){
+    dt.setDate(dt.getDate()+parseInt(p[1]));
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="WEEKLY"){
+    var targetDay=DAYS.indexOf(p[1]);
+    dt.setDate(dt.getDate()+1);
+    while(dt.getDay()!==targetDay)dt.setDate(dt.getDate()+1);
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="MONTHLY_DATE"){
+    var day=parseInt(p[1]);
+    dt.setMonth(dt.getMonth()+1);
+    dt.setDate(day);
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="MONTHLY_DAY"){
+    var nth=parseInt(p[1]),wday=DAYS.indexOf(p[2]);
+    dt.setMonth(dt.getMonth()+1);
+    dt.setDate(1);
+    var count=0;
+    while(count<nth){if(dt.getDay()===wday)count++;if(count<nth)dt.setDate(dt.getDate()+1);}
+    return dt.toISOString().slice(0,10);
+  }
+  return null;
+}
+
+// ── RecurPicker component ──────────────────────────────────────────────────
+function RecurPicker(props){
+  var val=props.value||"None",onChange=props.onChange;
+  var p=val==="None"?[]:val.split(":");
+  var type=val==="None"?"None":p[0];
+
+  var inp={padding:"7px 10px",borderRadius:7,border:"0.5px solid #DDD",background:WH,fontSize:13,color:BLK,width:"100%"};
+  var typeBtns=["None","WEEKLY","MONTHLY_DATE","MONTHLY_DAY","EVERY_N"].map(function(t){
+    var labels={None:"None",WEEKLY:"Every weekday",MONTHLY_DATE:"Day of month",MONTHLY_DAY:"Nth weekday",EVERY_N:"Every X days"};
+    var a=type===t;
+    return ce("button",{key:t,onClick:function(){
+      if(t==="None")onChange("None");
+      else if(t==="WEEKLY")onChange("WEEKLY:Monday");
+      else if(t==="MONTHLY_DATE")onChange("MONTHLY_DATE:1");
+      else if(t==="MONTHLY_DAY")onChange("MONTHLY_DAY:1:Monday");
+      else if(t==="EVERY_N")onChange("EVERY_N:7");
+    },style:{padding:"5px 10px",borderRadius:20,fontSize:11,fontWeight:a?600:400,border:a?"1.5px solid "+MD:"0.5px solid #DDD",background:a?RC.bg:"#F7F7F6",color:a?MD:"#666",cursor:"pointer",whiteSpace:"nowrap"}},labels[t]);
+  });
+
+  var detail=null;
+  if(type==="WEEKLY"){
+    detail=ce("div",null,
+      ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},"Which day?"),
+      ce("select",{value:p[1]||"Monday",onChange:function(e){onChange("WEEKLY:"+e.target.value);},style:inp},
+        DAYS.map(function(d){return ce("option",{key:d},d);})
+      )
+    );
+  }
+  if(type==="MONTHLY_DATE"){
+    var opts=[];for(var i=1;i<=31;i++)opts.push(i);
+    detail=ce("div",null,
+      ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},"Which day of the month?"),
+      ce("select",{value:p[1]||"1",onChange:function(e){onChange("MONTHLY_DATE:"+e.target.value);},style:inp},
+        opts.map(function(n){return ce("option",{key:n,value:n},n+(n===1?"st":n===2?"nd":n===3?"rd":"th"));})
+      )
+    );
+  }
+  if(type==="MONTHLY_DAY"){
+    detail=ce("div",{style:{display:"flex",gap:8}},
+      ce("div",{style:{flex:1}},
+        ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},"Which week?"),
+        ce("select",{value:p[1]||"1",onChange:function(e){onChange("MONTHLY_DAY:"+e.target.value+":"+(p[2]||"Monday"));},style:inp},
+          [1,2,3,4,5].map(function(n){return ce("option",{key:n,value:n},ORDINALS[n-1]);})
+        )
+      ),
+      ce("div",{style:{flex:1}},
+        ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},"Which day?"),
+        ce("select",{value:p[2]||"Monday",onChange:function(e){onChange("MONTHLY_DAY:"+(p[1]||"1")+":"+e.target.value);},style:inp},
+          DAYS.map(function(d){return ce("option",{key:d},d);})
+        )
+      )
+    );
+  }
+  if(type==="EVERY_N"){
+    detail=ce("div",null,
+      ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},"Every how many days?"),
+      ce("input",{type:"number",min:1,max:365,value:p[1]||"7",onChange:function(e){onChange("EVERY_N:"+e.target.value);},style:inp})
+    );
+  }
+
+  return ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+    ce("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},typeBtns),
+    detail
+  );
+}
+
 function isPers(ctx){return PI.indexOf(ctx)>=0;}
 function resolveCtxs(sel,ctxs){
   if(sel==="All")return ctxs;
@@ -241,13 +349,14 @@ function CardInner(props){
   var lbl=ctxLbl(task.ctx);
   var over=!!(task.due&&new Date(task.due)<new Date()&&task.status!=="Done");
   var rec=!!(task.recur&&task.recur!=="None");
+  var recLbl=recurLabel(task.recur);
   var done=task.subtasks.filter(function(s){return s.done;}).length;
   var can=!!(USERS[cu]&&USERS[cu].ctxs.indexOf(task.ctx)>=0);
   var isShared=!!(task.shared&&isPers(task.ctx));
   var moveCols=COLS.filter(function(c){return c!==task.status;});
 
   var duePill=task.due?Tag(over?"#FFE4E4":"#F2F2F0",over?"#991B1B":"#666",over?"#FECACA":"#DDD",[Ico(over?"warn":"cal",11,over?"#991B1B":"#999"),ce("span",{key:"d",style:{marginLeft:2}},fmt(task.due))]):null;
-  var recPill=rec?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",11,RC.tx),ce("span",{key:"r",style:{marginLeft:2}},task.recur)]):null;
+  var recPill=rec?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",11,RC.tx),ce("span",{key:"r",style:{marginLeft:2}},recLbl)]):null;
   var shPill=isShared?Tag("#FEF0FF","#6B21A8","#D8B4FE",[Ico("users",11,"#6B21A8"),ce("span",{key:"s",style:{marginLeft:2}},"Shared")]):null;
   var subPill=task.subtasks.length>0?Tag("#F2F2F0","#666",null,done+"/"+task.subtasks.length+" done"):null;
   var avStack=isShared
@@ -270,7 +379,7 @@ function CardInner(props){
     expandBody=ce("div",{style:{borderTop:"0.5px solid #EEE",padding:"10px 12px 12px",background:"#FAFAF9"},onClick:function(e){e.stopPropagation();}},
       task.notes?ce("div",{style:{display:"flex",gap:7,marginBottom:10,padding:"8px 10px",background:"#F2F2F0",borderRadius:7}},Ico("note",14,"#999"),ce("span",{style:{fontSize:13,color:"#555",lineHeight:1.5}},task.notes)):null,
       task.subtasks.length>0?ce("div",{style:{marginBottom:10}},subItems):null,
-      rec&&task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 10px",background:RC.bg,borderRadius:7}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next: "+fmt(addInt(task.due,task.recur)))):null,
+      rec&&task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 10px",background:RC.bg,borderRadius:7}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},recLbl+" · Next: "+fmt(addInt(task.due,task.recur)))):null,
       ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:4,flexWrap:"wrap",gap:8}},
         ce("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},moveBtns),
         ce("div",{style:{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#999"}},Av(task.to,16),ce("span",null,task.to),task.by!==task.to?ce("span",{style:{color:"#ddd"}},"· by "+task.by):null)
@@ -357,10 +466,11 @@ function TaskModal(props){
       ce("div",{style:{marginBottom:14,display:"flex",flexDirection:"column",gap:10}},catNodes),
       ce("label",{style:lb},"Priority"),
       ce("div",{style:{display:"flex",gap:6,marginBottom:14}},PK.map(function(p){var pc=PRI[p],a=f.pri===p;return ce("button",{key:p,onClick:function(){set("pri",p);},style:{flex:1,padding:"7px 0",borderRadius:7,border:a?"1.5px solid "+pc.bd:"0.5px solid #DDD",background:a?pc.bg:"#F7F7F6",cursor:"pointer"}},ce("span",{style:{fontSize:12,fontWeight:700,color:a?pc.tx:"#aaa"}},pc.lbl));})),
-      ce("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
-        ce("div",null,ce("label",{style:lb},"Due date"),ce("input",{type:"date",style:inp,value:f.due,onChange:function(e){set("due",e.target.value);}})),
-        ce("div",null,ce("label",{style:lb},"Repeats"),ce("select",{style:inp,value:f.recur,onChange:function(e){set("recur",e.target.value);}},RO.map(function(r){return ce("option",{key:r},r);})))
+      ce("div",{style:{marginBottom:14}},
+        ce("div",null,ce("label",{style:lb},"Due date"),ce("input",{type:"date",style:inp,value:f.due,onChange:function(e){set("due",e.target.value);}}))
       ),
+      ce("label",{style:lb},"Repeats"),
+      ce("div",{style:{marginBottom:14}},ce(RecurPicker,{value:f.recur,onChange:function(v){set("recur",v);}})),
       f.recur!=="None"&&f.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:14}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next: "+fmt(addInt(f.due,f.recur)))):null,
       ce("label",{style:lb},"Assign to"),
       assignSection,
@@ -395,7 +505,7 @@ function RecurModal(props){
         ce("div",{style:{width:36,height:36,borderRadius:9,background:RC.bg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},Ico("recur",18,RC.tx)),
         ce("h2",{style:{margin:0,fontSize:16,fontWeight:500,color:BLK}},"Recurring task completed")
       ),
-      ce("p",{style:{fontSize:13,color:"#666",margin:"0 0 8px"}},ce("span",{style:{fontWeight:500,color:BLK}},task.title)," repeats ",task.recur.toLowerCase(),"."),
+      ce("p",{style:{fontSize:13,color:"#666",margin:"0 0 8px"}},ce("span",{style:{fontWeight:500,color:BLK}},task.title)," repeats ",recurLabel(task.recur)||task.recur,"."  ),
       task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:16}},Ico("cal",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next due: "+fmt(addInt(task.due,task.recur)))):null,
       ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
         ce("button",{onClick:props.onSpawn,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"none",background:MB,cursor:"pointer",fontSize:14,fontWeight:600,color:BLK,textAlign:"left"}},Ico("recur",15,BLK)," Mark done and create next"),
