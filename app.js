@@ -6,6 +6,8 @@ const { useState, useEffect, useCallback } = React;
 
 // ── taxonomy ───────────────────────────────────────────────────────────────
 var NS=["Strategy","Finances","Operations","People","Clients","Marketing"];
+var SW=["Strategy","Finances","Operations","Clients","Projects"];
+var SWI=SW.map(function(s){return "SW:"+s;});
 var KS=["Strategy","Finances","Operations","People","Marketing","Menu"];
 var PS=["Child","Home","Family","Rentals","Misc Personal"];
 var NI=NS.map(function(s){return "N:"+s;});
@@ -17,11 +19,12 @@ var TREE=[
   {id:"N",label:"Nuve",       subs:NI.map(function(id,i){return {id:id,label:NS[i]};})},
   {id:"K",label:"Kesos Tacos",subs:KI.map(function(id,i){return {id:id,label:KS[i]};})},
   {id:"P",label:"Personal",   subs:PI.map(function(id,i){return {id:id,label:PS[i]};})},
+  {id:"SW",label:"My Work",     subs:SW.map(function(s,i){return {id:"SW:"+s,label:s};})},
 ];
 
 var USERS={
   Jhonatan:{ini:"JA",color:"#00965E",bg:"#E0F7EE",ctxs:AI,          canGin:true, canSarah:true },
-  Sarah:   {ini:"SA",color:"#0F6E9A",bg:"#E0F2FB",ctxs:PI,           canGin:false,canSarah:false},
+  Sarah:   {ini:"SA",color:"#0F6E9A",bg:"#E0F2FB",ctxs:PI.concat(SWI),canGin:false,canSarah:false},
   Gin:     {ini:"GN",color:"#7C3AED",bg:"#EDE9FE",ctxs:NI.concat(KI),canGin:false,canSarah:false},
 };
 
@@ -41,8 +44,9 @@ CTC["Home"]         ={bg:"#FFF7ED",tx:"#9A3412",bd:"#FED7AA"};
 CTC["Family"]       ={bg:"#EFF6FF",tx:"#1E40AF",bd:"#BFDBFE"};
 CTC["Rentals"]      ={bg:"#E0F2FB",tx:"#0F6E9A",bd:"#7DD3F0"};
 CTC["Misc Personal"]={bg:"#F1F5F9",tx:"#475569",bd:"#CBD5E1"};
+SWI.forEach(function(id){CTC[id]={bg:"#FEF0FF",tx:"#6B21A8",bd:"#D8B4FE"};});
 
-var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#F59E0B",bg:"#FFFBEB",tx:"#92400E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"}};
+var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#F59E0B",bg:"#FFFBEB",tx:"#92400E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"},SW:{ac:"#A855F7",bg:"#FEF0FF",tx:"#6B21A8"}};
 var CC={"To Do":{ac:"#111",tx:"#111",bg:"#F0F0EE"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
 var RC={bg:"#D4F7E5",tx:"#00965E",bd:"#2AD870"};
 function ctxLbl(ctx){return ctx.indexOf(":")>=0?ctx.split(":")[1]:ctx;}
@@ -260,7 +264,7 @@ function PBadge(p){
 
 // ── PIN data ───────────────────────────────────────────────────────────────
 var PINS={Jhonatan:"2013",Sarah:"0222",Gin:"0221"};
-var LOGO_WHITE="data:image/png;base64,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";
+var LOGO_WHITE="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDI0LjMuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxMDgwIDIzMC4wOSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTA4MCAyMzAuMDk7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KPC9zdHlsZT4KPGc+Cgk8Zz4KCQk8cGF0aCBjbGFzcz0ic3QwIiBkPSJNNjcxLjE5LDI0Ljc0djEwMy44NGMwLDYxLjAyLTI5LjI3LDg0LjU3LTkyLjc4LDg0LjU3cy05Mi43Ny0yMy41NC05Mi43Ny04NC41N1YyNC43NGg1Mi44MXY5MS43CgkJCWMwLDQwLjY4LDExLjc3LDUzLjg5LDM5Ljk2LDUzLjg5YzI4LjE5LDAsMzkuOTctMTMuMiwzOS45Ny01My44OXYtOTEuN0g2NzEuMTl6Ii8+CgkJPHBhdGggY2xhc3M9InN0MCIgZD0iTTI4OC41MiwyMDUuNzJWMTAxLjg5YzAtNjEuMDIsMjkuMjctODQuNTcsOTIuNzgtODQuNTdzOTIuNzcsMjMuNTQsOTIuNzcsODQuNTd2MTAzLjg0aC01Mi44MXYtOTEuNwoJCQljMC00MC42OC0xMS43Ny01My44OS0zOS45Ni01My44OXMtMzkuOTcsMTMuMi0zOS45Nyw1My44OXY5MS43SDI4OC41MnoiLz4KCQk8cGF0aCBjbGFzcz0ic3QwIiBkPSJNNzM5LjYsMjQuNzRsNTEuMDMsMTEyLjc2bDUxLjAzLTExMi43Nmg2Mi4wOGwtOTUuMjcsMTgyLjdoLTM1LjY5bC05NS4yNy0xODIuN0g3MzkuNnoiLz4KCQk8cGF0aCBjbGFzcz0ic3QwIiBkPSJNOTgyLjU4LDE5LjAzYzU0Ljk2LDAsOTcuNDIsMzYuMDQsOTcuNDIsOTUuOTljMCwyLjUtMC4zNSw3Ljg1LTAuMzUsNy44NUg5MzcuOTgKCQkJYzAsMzIuODMsMjYuMDUsNDguMTcsNDkuMjQsNDguMTdjMjIuODQsMCwzNS4zMy02LjA3LDUwLjY3LTI0LjI3bDM4LjE5LDE5LjI3Yy0xOS45OCwzMy4xOS01Mi44MSw0Ny4xLTkyLjc4LDQ3LjEKCQkJYy01NC45NiwwLTk5LjkxLTQzLjUzLTk5LjkxLTk3LjQxQzg4My4zOCw2Mi4yMSw5MjcuOTksMTkuMDMsOTgyLjU4LDE5LjAzeiBNMTAyOC42Miw5My4yNWMtMi44Ni0yMC43LTIxLjA1LTM2LjA0LTQ0LjYxLTM2LjA0CgkJCWMtMjYuMDUsMC00My4xOCwxNy4xMi00NC42MSwzNi4wNEgxMDI4LjYyeiIvPgoJPC9nPgoJPGc+CgkJPHBhdGggY2xhc3M9InN0MCIgZD0iTTc2LjUxLDE1My41OFYwQzM0LjI2LDAsMCwzNC4yNiwwLDc2LjUxdjE1My41OGgxNTMuMDJDMTEwLjc3LDIzMC4wOSw3Ni41MSwxOTUuODQsNzYuNTEsMTUzLjU4eiIvPgoJCTxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik03Ni41MSwwYzQyLjI2LDAsNzYuNTEsMzQuMjYsNzYuNTEsNzYuNTF2MTUzLjU4YzQyLjI2LDAsNzYuNTEtMzQuMjYsNzYuNTEtNzYuNTFWMEg3Ni41MXoiLz4KCTwvZz4KPC9nPgo8L3N2Zz4K";
 var LOGO_SVG="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDI0LjMuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxMDgwIDIzMC4wOSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTA4MCAyMzAuMDk7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojOEZGOUJBO30KCS5zdDF7ZmlsbDojMDA5NjVFO30KCS5zdDJ7ZmlsbDojN0FDQzlCO30KCS5zdDN7ZmlsbDojMkFEODcwO30KPC9zdHlsZT4KPGc+Cgk8Zz4KCQk8cGF0aCBkPSJNNjcxLjE5LDI0Ljc0djEwMy44NGMwLDYxLjAyLTI5LjI3LDg0LjU3LTkyLjc4LDg0LjU3cy05Mi43Ny0yMy41NC05Mi43Ny04NC41N1YyNC43NGg1Mi44MXY5MS43CgkJCWMwLDQwLjY4LDExLjc3LDUzLjg5LDM5Ljk2LDUzLjg5YzI4LjE5LDAsMzkuOTctMTMuMiwzOS45Ny01My44OXYtOTEuN0g2NzEuMTl6Ii8+CgkJPHBhdGggZD0iTTI4OC41MiwyMDUuNzJWMTAxLjg5YzAtNjEuMDIsMjkuMjctODQuNTcsOTIuNzgtODQuNTdzOTIuNzcsMjMuNTQsOTIuNzcsODQuNTd2MTAzLjg0aC01Mi44MXYtOTEuNwoJCQljMC00MC42OC0xMS43Ny01My44OS0zOS45Ni01My44OXMtMzkuOTcsMTMuMi0zOS45Nyw1My44OXY5MS43SDI4OC41MnoiLz4KCQk8cGF0aCBkPSJNNzM5LjYsMjQuNzRsNTEuMDMsMTEyLjc2bDUxLjAzLTExMi43Nmg2Mi4wOGwtOTUuMjcsMTgyLjdoLTM1LjY5bC05NS4yNy0xODIuN0g3MzkuNnoiLz4KCQk8cGF0aCBkPSJNOTgyLjU4LDE5LjAzYzU0Ljk2LDAsOTcuNDIsMzYuMDQsOTcuNDIsOTUuOTljMCwyLjUtMC4zNSw3Ljg1LTAuMzUsNy44NUg5MzcuOThjMCwzMi44MywyNi4wNSw0OC4xNyw0OS4yNCw0OC4xNwoJCQljMjIuODQsMCwzNS4zMy02LjA3LDUwLjY3LTI0LjI3bDM4LjE5LDE5LjI3Yy0xOS45OCwzMy4xOS01Mi44MSw0Ny4xLTkyLjc4LDQ3LjFjLTU0Ljk2LDAtOTkuOTEtNDMuNTMtOTkuOTEtOTcuNDEKCQkJQzg4My4zOCw2Mi4yMSw5MjcuOTksMTkuMDMsOTgyLjU4LDE5LjAzeiBNMTAyOC42Miw5My4yNWMtMi44Ni0yMC43LTIxLjA1LTM2LjA0LTQ0LjYxLTM2LjA0Yy0yNi4wNSwwLTQzLjE4LDE3LjEyLTQ0LjYxLDM2LjA0CgkJCUgxMDI4LjYyeiIvPgoJPC9nPgoJPGc+CgkJPHBhdGggY2xhc3M9InN0MCIgZD0iTTc2LjUxLDE1My41OFYwQzM0LjI2LDAsMCwzNC4yNiwwLDc2LjUxdjE1My41OGgxNTMuMDJDMTEwLjc3LDIzMC4wOSw3Ni41MSwxOTUuODQsNzYuNTEsMTUzLjU4eiIvPgoJCTxwYXRoIGNsYXNzPSJzdDEiIGQ9Ik03Ni41MSwwYzQyLjI2LDAsNzYuNTEsMzQuMjYsNzYuNTEsNzYuNTF2MTUzLjU4YzQyLjI2LDAsNzYuNTEtMzQuMjYsNzYuNTEtNzYuNTFWMEg3Ni41MXoiLz4KCQk8cGF0aCBjbGFzcz0ic3QyIiBkPSJNNzYuNTEsMEw3Ni41MSwwbDAsMTUzLjU4YzAsNDIuMjYsMzQuMjYsNzYuNTEsNzYuNTEsNzYuNTFoMFY3Ni41MUMxNTMuMDIsMzQuMjYsMTE4Ljc3LDAsNzYuNTEsMHoiLz4KCQk8cGF0aCBjbGFzcz0ic3QzIiBkPSJNNzYuNTEsMEw3Ni41MSwwbDAsMTUzLjU4YzAsNDIuMjYsMzQuMjYsNzYuNTEsNzYuNTEsNzYuNTFoMFY3Ni41MUMxNTMuMDIsMzQuMjYsMTE4Ljc3LDAsNzYuNTEsMHoiLz4KCTwvZz4KPC9nPgo8L3N2Zz4K";
 
 // ── PinScreen ──────────────────────────────────────────────────────────────
@@ -625,6 +629,166 @@ function CalendarView(props){
   );
 }
 
+// ── RecurringView ──────────────────────────────────────────────────────────
+function RecurringView(props){
+  var tasks=props.tasks,cu=props.cu;
+  var recurTasks=tasks.filter(function(t){return t.recur&&t.recur!=="None";});
+  var [editT,setEditT]=useState(null);
+  var [modal,setModal]=useState(false);
+
+  if(recurTasks.length===0){
+    return ce("div",{style:{background:WH,borderRadius:12,padding:32,textAlign:"center",color:"#aaa",border:"0.5px solid #E2E2E0"}},"No recurring tasks found.");
+  }
+
+  var rows=recurTasks.map(function(t){
+    var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
+    var lbl=recurLabel(t.recur);
+    var next=t.due?addInt(t.due,t.recur):null;
+    return ce("div",{key:t.id,style:{background:WH,border:"0.5px solid #E2E2E0",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
+      ce("div",{style:{flex:1,minWidth:180}},
+        ce("div",{style:{fontSize:13,fontWeight:600,color:BLK,marginBottom:4}},t.title),
+        ce("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
+          ce("span",{style:{fontSize:11,fontWeight:600,padding:"1px 7px",borderRadius:4,background:cc.bg,color:cc.tx}},ctxLbl(t.ctx)),
+          ce("span",{style:{fontSize:11,padding:"1px 7px",borderRadius:4,background:RC.bg,color:RC.tx,display:"flex",alignItems:"center",gap:3}},Ico("recur",10,RC.tx),lbl)
+        )
+      ),
+      ce("div",{style:{fontSize:12,color:"#888",minWidth:100}},
+        t.due?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Current due"),ce("div",{style:{fontWeight:500,color:BLK}},fmt(t.due))):ce("div",{style:{color:"#ccc"}},"No due date")
+      ),
+      ce("div",{style:{fontSize:12,color:"#888",minWidth:100}},
+        next?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Next occurrence"),ce("div",{style:{fontWeight:500,color:MD}},fmt(next))):null
+      ),
+      ce("div",null,
+        Av(t.to,20)
+      ),
+      ce("button",{onClick:function(){setEditT(t);setModal(true);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#555",display:"flex",alignItems:"center",gap:4}},Ico("edit",12)," Edit")
+    );
+  });
+
+  return ce("div",{style:{flex:1,minWidth:0}},
+    ce("div",{style:{marginBottom:12,display:"flex",alignItems:"center",gap:8}},
+      ce("span",{style:{fontSize:14,fontWeight:600,color:BLK}},"Recurring Tasks"),
+      ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
+      ce("span",{style:{fontSize:12,color:"#888"}},recurTasks.length+" recurring")
+    ),
+    ce("div",{style:{background:WH,borderRadius:12,padding:"14px 16px",border:"0.5px solid #E2E2E0"}},rows),
+    modal&&editT?ce(TaskModal,{task:editT,cu:cu,onSave:props.onSave,onClose:function(){setModal(false);setEditT(null);}}):null
+  );
+}
+
+// ── QuarterlyView ──────────────────────────────────────────────────────────
+function QuarterlyView(props){
+  var tasks=props.tasks,cu=props.cu;
+  var now=new Date();
+  var [yr,setYr]=useState(now.getFullYear());
+
+  // Generate all occurrences of recurring tasks within the year
+  function expandRecurring(tasks,year){
+    var expanded=[];
+    tasks.forEach(function(t){
+      // Always include the base task if it has a due date in this year
+      if(t.due&&t.due.slice(0,4)===String(year)){
+        expanded.push(Object.assign({},t,{_expanded:false}));
+      } else if(t.due&&t.due.slice(0,4)!==String(year)&&(!t.recur||t.recur==="None")){
+        return; // skip non-recurring tasks not in this year
+      }
+      // Expand recurring tasks
+      if(t.recur&&t.recur!=="None"&&t.due){
+        var cur=t.due;
+        var safety=0;
+        while(safety<60){
+          safety++;
+          var next=addInt(cur,t.recur);
+          if(!next)break;
+          if(next.slice(0,4)>String(year))break;
+          if(next.slice(0,4)===String(year)){
+            // Don't duplicate the base task
+            if(next!==t.due){
+              expanded.push(Object.assign({},t,{id:t.id+"_"+next,due:next,_expanded:true,_baseId:t.id}));
+            }
+          }
+          cur=next;
+        }
+        // Also project forward from any start date
+        if(t.due.slice(0,4)<String(year)){
+          var cur2=t.due;
+          var safety2=0;
+          while(safety2<100){
+            safety2++;
+            var next2=addInt(cur2,t.recur);
+            if(!next2)break;
+            if(next2.slice(0,4)>String(year))break;
+            if(next2.slice(0,4)===String(year)){
+              expanded.push(Object.assign({},t,{id:t.id+"_"+next2,due:next2,_expanded:true,_baseId:t.id}));
+            }
+            cur2=next2;
+          }
+        }
+      }
+    });
+    // Deduplicate by id+due
+    var seen={};
+    return expanded.filter(function(t){
+      var key=t.id;
+      if(seen[key])return false;
+      seen[key]=true;
+      return true;
+    });
+  }
+
+  var allExpanded=expandRecurring(tasks,yr);
+
+  var quarters=[
+    {label:"Q1",months:[0,1,2],color:"#EFF6FF",ac:"#2563EB"},
+    {label:"Q2",months:[3,4,5],color:"#F0FDF4",ac:"#16A34A"},
+    {label:"Q3",months:[6,7,8],color:"#FFFBEB",ac:"#D97706"},
+    {label:"Q4",months:[9,10,11],color:"#FEF2F2",ac:"#DC2626"},
+  ];
+
+  var qEls=quarters.map(function(q){
+    var qTasks=allExpanded.filter(function(t){
+      if(!t.due)return false;
+      var m=parseInt(t.due.slice(5,7))-1;
+      return q.months.indexOf(m)>=0;
+    }).sort(function(a,b){return a.due>b.due?1:-1;});
+
+    var taskEls=qTasks.length===0
+      ?ce("div",{style:{padding:"10px 0",color:"#ccc",fontSize:12,textAlign:"center"}},"No tasks")
+      :qTasks.map(function(t){
+        var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
+        return ce("div",{key:t.id,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"0.5px solid #E8E8E6",background:t._expanded?"#FAFAF9":WH,marginBottom:4}},
+          ce("div",{style:{width:6,height:6,borderRadius:"50%",background:PRI[t.pri]?PRI[t.pri].dot:"#DDD",flexShrink:0}}),
+          ce("div",{style:{flex:1,fontSize:12,fontWeight:500,color:t.status==="Done"?"#aaa":BLK,textDecoration:t.status==="Done"?"line-through":"none"}},t.title),
+          ce("span",{style:{fontSize:10,padding:"1px 6px",borderRadius:4,background:cc.bg,color:cc.tx}},ctxLbl(t.ctx)),
+          ce("span",{style:{fontSize:10,color:"#aaa"}},fmt(t.due)),
+          t._expanded?ce("span",{style:{fontSize:9,color:RC.tx,background:RC.bg,borderRadius:4,padding:"1px 5px"}},Ico("recur",9,RC.tx)):null
+        );
+      });
+
+    return ce("div",{key:q.label,style:{flex:1,minWidth:220}},
+      ce("div",{style:{background:q.color,border:"0.5px solid "+q.ac+"44",borderRadius:10,padding:"10px 12px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}},
+        ce("span",{style:{fontSize:14,fontWeight:700,color:q.ac}}),
+        ce("span",{style:{fontSize:14,fontWeight:700,color:q.ac}},q.label),
+        ce("span",{style:{fontSize:12,color:q.ac,background:q.ac+"22",borderRadius:20,padding:"1px 8px"}},qTasks.length)
+      ),
+      ce("div",null,taskEls)
+    );
+  });
+
+  return ce("div",{style:{flex:1,minWidth:0}},
+    ce("div",{style:{marginBottom:12,display:"flex",alignItems:"center",gap:10}},
+      ce("span",{style:{fontSize:14,fontWeight:600,color:BLK}},"Quarterly View"),
+      ce("div",{style:{display:"flex",alignItems:"center",gap:6}},
+        ce("button",{onClick:function(){setYr(yr-1);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,cursor:"pointer",padding:"3px 10px",fontSize:13,color:"#555"}},"<"),
+        ce("span",{style:{fontSize:13,fontWeight:600,color:BLK,minWidth:40,textAlign:"center"}},yr),
+        ce("button",{onClick:function(){setYr(yr+1);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,cursor:"pointer",padding:"3px 10px",fontSize:13,color:"#555"}},">")
+      ),
+      ce("span",{style:{fontSize:11,color:"#aaa",display:"flex",alignItems:"center",gap:3}},Ico("recur",10,"#aaa")," = recurring occurrence")
+    ),
+    ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},qEls)
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────
 function App(){
   var [cu,setCu]=useState(null);
@@ -778,7 +942,9 @@ function App(){
       ce("button",{onClick:function(){setEditT(null);setModal(true);},style:{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:9,fontSize:13,fontWeight:600,border:"none",background:MB,color:BLK,cursor:"pointer"}},Ico("plus",14,BLK)," New task"),
       ce("div",{style:{display:"flex",border:"0.5px solid #DDD",borderRadius:8,overflow:"hidden"}},
         ce("button",{onClick:function(){setView("board");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="board"?600:400,background:view==="board"?MB:"#F7F7F6",color:view==="board"?BLK:"#666",border:"none",cursor:"pointer"}},"Board"),
-        ce("button",{onClick:function(){setView("calendar");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="calendar"?600:400,background:view==="calendar"?MB:"#F7F7F6",color:view==="calendar"?BLK:"#666",border:"none",cursor:"pointer"}},"Calendar")
+        ce("button",{onClick:function(){setView("calendar");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="calendar"?600:400,background:view==="calendar"?MB:"#F7F7F6",color:view==="calendar"?BLK:"#666",border:"none",cursor:"pointer"}},"Monthly"),
+        ce("button",{onClick:function(){setView("quarterly");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="quarterly"?600:400,background:view==="quarterly"?MB:"#F7F7F6",color:view==="quarterly"?BLK:"#666",border:"none",cursor:"pointer"}},"Quarterly"),
+        ce("button",{onClick:function(){setView("recurring");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="recurring"?600:400,background:view==="recurring"?MB:"#F7F7F6",color:view==="recurring"?BLK:"#666",border:"none",cursor:"pointer"}},"Recurring")
       ),
       ce("div",{style:{display:"flex",alignItems:"center",gap:7,padding:"5px 9px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0"}},
         Av(cu,24),
@@ -817,7 +983,10 @@ function App(){
       sideOpen&&window.innerWidth<700?ce("div",{onClick:function(){setSideOpen(false);},style:{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",zIndex:140}}):null,
       // Main content
       ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
-        view==="calendar"?calView:boardView
+        view==="calendar"?calView:
+        view==="quarterly"?ce(QuarterlyView,{tasks:allVis,cu:cu}):
+        view==="recurring"?ce(RecurringView,{tasks:allVis,cu:cu,onSave:saveTask}):
+        boardView
       )
     ),
     modalEl,recurEl
