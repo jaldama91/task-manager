@@ -182,11 +182,11 @@ function generateOccurrences(tasks, startStr, endStr){
   return result;
 }
 
-// Get date range for current + next 3 months for board view
+// Get date range for board view — only 30 days ahead for recurring tasks
 function getBoardWindow(){
   var now = new Date();
   var start = now.toISOString().slice(0,10);
-  var end = new Date(now.getFullYear(), now.getMonth()+3, 0).toISOString().slice(0,10);
+  var end = new Date(now.getTime() + 30*24*60*60*1000).toISOString().slice(0,10);
   return {start:start, end:end};
 }
 
@@ -1015,7 +1015,13 @@ function QuarterlyView(props){
     });
   }
 
-  var allExpanded=expandRecurring(tasks,yr);
+  var nowYr=new Date().getFullYear();
+  // For current year, also expand next year to cover 18-month window
+  var allExpanded=expandRecurring(tasks,yr).concat(
+    yr===nowYr?expandRecurring(tasks,yr+1):[]
+  );
+  // If viewing current year, limit to 18 months from today
+  var cutoff18=yr===nowYr?(function(){var d=new Date();d.setMonth(d.getMonth()+18);return d.toISOString().slice(0,10);}()):null;
 
   var quarters=[
     {label:"Q1",months:[0,1,2],color:"#EFF6FF",ac:"#2563EB"},
@@ -1028,8 +1034,10 @@ function QuarterlyView(props){
     var qTasks=allExpanded.filter(function(t){
       var d=displayDate(t);
       if(!d)return false;
+      if(cutoff18&&d>cutoff18)return false;
       var m=parseInt(d.slice(5,7))-1;
-      return q.months.indexOf(m)>=0;
+      var y=parseInt(d.slice(0,4));
+      return y===yr&&q.months.indexOf(m)>=0;
     }).sort(function(a,b){
       var da=displayDate(a)||"9999";
       var db2=displayDate(b)||"9999";
@@ -1445,7 +1453,7 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},"Your tasks by due date")
     ),
-    ce(CalendarView,{cu:cu,tasks:base.concat(generateOccurrences(base.filter(function(t){return t.status!=="Done"&&!t._virtual;}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear()+1,11,31).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
+    ce(CalendarView,{cu:cu,tasks:base.concat(generateOccurrences(base.filter(function(t){return t.status!=="Done"&&!t._virtual;}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
   );
 
   var topBar=ce("div",{style:{background:WH,borderRadius:12,padding:"10px 14px",marginBottom:12,border:"0.5px solid #E2E2E0",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
