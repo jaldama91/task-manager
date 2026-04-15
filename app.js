@@ -1310,6 +1310,11 @@ function App(){
     if(af!=="All"&&!t.shared&&t.to!==af)return false;
     // In proxy view, show Jhonatan's tasks
     if(proxyView&&cu==="Gin"&&t.ctx&&PI.indexOf(t.ctx)>=0)return false;
+    // Hide recurring tasks on board if due date is more than 30 days away
+    if(t.recur&&t.recur!=="None"&&t.status!=="Done"&&t.due){
+      var cutoff=new Date();cutoff.setDate(cutoff.getDate()+30);
+      if(new Date(t.due+"T00:00:00")>cutoff)return false;
+    }
     return true;
   });
   var todayStr2=new Date().toISOString().slice(0,10);
