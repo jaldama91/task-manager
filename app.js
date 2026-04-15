@@ -46,7 +46,7 @@ CTC["Rentals"]      ={bg:"#E0F2FB",tx:"#0F6E9A",bd:"#7DD3F0"};
 CTC["Misc Personal"]={bg:"#F1F5F9",tx:"#475569",bd:"#CBD5E1"};
 SWI.forEach(function(id){CTC[id]={bg:"#FEF0FF",tx:"#6B21A8",bd:"#D8B4FE"};});
 
-var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#F59E0B",bg:"#FFFBEB",tx:"#92400E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"},SW:{ac:"#A855F7",bg:"#FEF0FF",tx:"#6B21A8"}};
+var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#EAB308",bg:"#FEF9C3",tx:"#854D0E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"},SW:{ac:"#A855F7",bg:"#FEF0FF",tx:"#6B21A8"}};
 var CC={"To Do":{ac:"#111",tx:"#111",bg:"#F0F0EE"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
 var RC={bg:"#D4F7E5",tx:"#00965E",bd:"#2AD870"};
 function ctxLbl(ctx){return ctx.indexOf(":")>=0?ctx.split(":")[1]:ctx;}
@@ -1095,7 +1095,7 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},"Your tasks by due date")
     ),
-    ce(CalendarView,{cu:cu,tasks:allVis})
+    ce(CalendarView,{cu:cu,tasks:base.concat(generateOccurrences(base.filter(function(t){return t.status!=="Done"&&!t._virtual;}),getBoardWindow().start,new Date(new Date().getFullYear(),11,31).toISOString().slice(0,10)))})
   );
 
   var topBar=ce("div",{style:{background:WH,borderRadius:12,padding:"10px 14px",marginBottom:12,border:"0.5px solid #E2E2E0",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
@@ -1156,8 +1156,8 @@ function App(){
       // Main content
       ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
         view==="calendar"?calView:
-        view==="quarterly"?ce(QuarterlyView,{tasks:allVis,cu:cu}):
-        view==="recurring"?ce(RecurringView,{tasks:allVis,cu:cu,onReload:loadTasks}):
+        view==="quarterly"?ce(QuarterlyView,{tasks:base,cu:cu}):
+        view==="recurring"?ce(RecurringView,{tasks:base,cu:cu,onReload:loadTasks}):
         boardView
       )
     ),
