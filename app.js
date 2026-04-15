@@ -1073,6 +1073,176 @@ function QuarterlyView(props){
   );
 }
 
+
+// ── NotesView ───────────────────────────────────────────────────────────────
+// notes table schema:
+//   id uuid pk, owner text, shared_with text, ctx text,
+//   title text, body text, note_type text (private|ctx|shared), updated_at timestamptz
+function NotesView(props){
+  var cu=props.cu;
+  var [notes,setNotes]=useState([]);
+  var [activeId,setActiveId]=useState(null);
+  var [editTitle,setEditTitle]=useState("");
+  var [editBody,setEditBody]=useState("");
+  var [saving,setSaving]=useState(false);
+  var [tab,setTab]=useState("private"); // private | ctx | shared
+  var [newCtx,setNewCtx]=useState(TREE[0]?TREE[0].id:"N");
+  var [newSharedWith,setNewSharedWith]=useState(cu==="Jhonatan"?"Sarah":"Jhonatan");
+  var saveTimer=React.useRef(null);
+
+  var uctxs=USERS[cu]?USERS[cu].ctxs:[];
+  var accessibleTrees=TREE.filter(function(n){return n.subs.some(function(s){return uctxs.indexOf(s.id)>=0;})||uctxs.indexOf(n.id)>=0;});
+
+  function loadNotes(){
+    sb.from("notes").select("*")
+      .or("owner.eq."+cu+",shared_with.eq."+cu)
+      .order("updated_at",{ascending:false})
+      .then(function(r){if(r.data)setNotes(r.data);});
+  }
+
+  useEffect(function(){loadNotes();},[cu]);
+
+  // Realtime
+  useEffect(function(){
+    var ch=sb.channel("notes-rt").on("postgres_changes",{event:"*",schema:"public",table:"notes"},function(){loadNotes();}).subscribe();
+    return function(){sb.removeChannel(ch);};
+  },[cu]);
+
+  function selectNote(n){
+    setActiveId(n.id);
+    setEditTitle(n.title||"");
+    setEditBody(n.body||"");
+  }
+
+  function autoSave(id,title,body){
+    if(saveTimer.current)clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(function(){
+      setSaving(true);
+      sb.from("notes").update({title:title,body:body,updated_at:new Date().toISOString()}).eq("id",id).then(function(){setSaving(false);loadNotes();});
+    },800);
+  }
+
+  function createNote(type,ctx,sharedWith){
+    var row={
+      owner:cu,
+      note_type:type,
+      ctx:ctx||null,
+      shared_with:sharedWith||null,
+      title:type==="ctx"?"Notes — "+getVL(ctx):type==="shared"?"Shared with "+sharedWith:"My Private Notes",
+      body:"",
+      updated_at:new Date().toISOString()
+    };
+    sb.from("notes").insert([row]).select().then(function(r){
+      if(r.data&&r.data[0]){loadNotes();selectNote(r.data[0]);}
+    });
+  }
+
+  function deleteNote(id){
+    sb.from("notes").delete().eq("id",id).then(function(){
+      if(activeId===id){setActiveId(null);setEditTitle("");setEditBody("");}
+      loadNotes();
+    });
+  }
+
+  // Filter notes by tab
+  var privateNotes=notes.filter(function(n){return n.note_type==="private"&&n.owner===cu;});
+  var ctxNotes=notes.filter(function(n){return n.note_type==="ctx"&&(n.owner===cu);});
+  var sharedNotes=notes.filter(function(n){return n.note_type==="shared"&&(n.owner===cu||n.shared_with===cu);});
+
+  var tabNotes=tab==="private"?privateNotes:tab==="ctx"?ctxNotes:sharedNotes;
+  var activeNote=notes.find(function(n){return n.id===activeId;});
+
+  // Note list
+  var noteList=ce("div",{style:{width:220,flexShrink:0,display:"flex",flexDirection:"column",gap:0,borderRight:"1px solid #E8E8E6",paddingRight:0}},
+    // Tabs
+    ce("div",{style:{display:"flex",borderBottom:"1px solid #E8E8E6",marginBottom:0}},
+      ["private","ctx","shared"].map(function(t){
+        var labels={private:"Private",ctx:"Context",shared:"Shared"};
+        var a=tab===t;
+        return ce("button",{key:t,onClick:function(){setTab(t);setActiveId(null);},style:{flex:1,padding:"8px 4px",fontSize:11,fontWeight:a?700:400,border:"none",borderBottom:a?"2px solid "+MB:"2px solid transparent",background:"none",cursor:"pointer",color:a?MD:"#888"}},labels[t]);
+      })
+    ),
+    // Note entries
+    ce("div",{style:{flex:1,overflowY:"auto",maxHeight:500}},
+      tabNotes.length===0?ce("div",{style:{padding:16,fontSize:12,color:"#bbb",textAlign:"center"}},"No notes yet"):
+      tabNotes.map(function(n){
+        var a=activeId===n.id;
+        var isOwner=n.owner===cu;
+        return ce("div",{key:n.id,onClick:function(){selectNote(n);},style:{padding:"10px 14px",cursor:"pointer",borderBottom:"0.5px solid #F0F0EE",background:a?"#E8FBF1":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}},
+          ce("div",{style:{flex:1,minWidth:0}},
+            ce("div",{style:{fontSize:13,fontWeight:a?600:400,color:a?MD:BLK,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},n.title||"Untitled"),
+            ce("div",{style:{fontSize:10,color:"#aaa",marginTop:2}},
+              n.note_type==="ctx"?getVL(n.ctx):n.note_type==="shared"?(n.owner===cu?"→ "+n.shared_with:"← "+n.owner):"Only you"
+            )
+          ),
+          isOwner?ce("button",{onClick:function(e){e.stopPropagation();deleteNote(n.id);},style:{background:"none",border:"none",cursor:"pointer",color:"#ccc",padding:2,flexShrink:0,display:"flex"}},Ico("trash",12)):null
+        );
+      })
+    ),
+    // New note button
+    ce("div",{style:{padding:"10px 12px",borderTop:"0.5px solid #E8E8E6"}},
+      tab==="private"?ce("button",{onClick:function(){createNote("private",null,null);},style:{width:"100%",padding:"7px",borderRadius:8,border:"1px dashed #DDD",background:"none",fontSize:12,color:MUT,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}},Ico("plus",12,MUT)," New private note"):
+      tab==="ctx"?ce("div",{style:{display:"flex",gap:6}},
+        ce("select",{value:newCtx,onChange:function(e){setNewCtx(e.target.value);},style:{flex:1,fontSize:11,padding:"5px 7px",borderRadius:7,border:"0.5px solid #DDD",background:WH,color:BLK}},
+          accessibleTrees.map(function(n){return ce("option",{key:n.id,value:n.id},n.label);})
+        ),
+        ce("button",{onClick:function(){createNote("ctx",newCtx,null);},style:{padding:"5px 10px",borderRadius:7,border:"none",background:MB,color:BLK,fontSize:11,fontWeight:600,cursor:"pointer"}},"+ Add")
+      ):
+      ce("div",{style:{display:"flex",gap:6}},
+        ce("select",{value:newSharedWith,onChange:function(e){setNewSharedWith(e.target.value);},style:{flex:1,fontSize:11,padding:"5px 7px",borderRadius:7,border:"0.5px solid #DDD",background:WH,color:BLK}},
+          Object.keys(USERS).filter(function(u){return u!==cu;}).map(function(u){return ce("option",{key:u,value:u},u);})
+        ),
+        ce("button",{onClick:function(){createNote("shared",null,newSharedWith);},style:{padding:"5px 10px",borderRadius:7,border:"none",background:MB,color:BLK,fontSize:11,fontWeight:600,cursor:"pointer"}},"+ Add")
+      )
+    )
+  );
+
+  // Editor
+  var MUT="#6B7280";
+  var editor=activeNote?ce("div",{style:{flex:1,display:"flex",flexDirection:"column",padding:"0 0 0 20px"}},
+    // Note header
+    ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},
+      ce("div",{style:{flex:1}},
+        ce("input",{
+          value:editTitle,
+          onChange:function(e){setEditTitle(e.target.value);autoSave(activeNote.id,e.target.value,editBody);},
+          style:{fontSize:18,fontWeight:700,color:BLK,border:"none",outline:"none",background:"none",width:"100%",fontFamily:"inherit"}
+        })
+      ),
+      saving?ce("span",{style:{fontSize:11,color:"#aaa"}},"Saving..."):ce("span",{style:{fontSize:11,color:"#ccc"}},"Auto-saved"),
+      activeNote.note_type==="shared"?ce("div",{style:{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#0F6E9A",background:"#E0F2FB",borderRadius:6,padding:"3px 8px"}},
+        Ico("users",12,"#0F6E9A"),
+        activeNote.owner===cu?"Shared with "+activeNote.shared_with:"From "+activeNote.owner
+      ):activeNote.note_type==="ctx"?ce("div",{style:{fontSize:11,color:MD,background:"#E8FBF1",borderRadius:6,padding:"3px 8px"}},"📁 "+getVL(activeNote.ctx)):
+      ce("div",{style:{fontSize:11,color:"#6B21A8",background:"#FEF0FF",borderRadius:6,padding:"3px 8px"}},"🔒 Private")
+    ),
+    // Can only edit if you own it (for shared notes, both can edit)
+    activeNote.owner===cu||activeNote.note_type==="shared"?
+    ce("textarea",{
+      value:editBody,
+      onChange:function(e){setEditBody(e.target.value);autoSave(activeNote.id,editTitle,e.target.value);},
+      placeholder:"Start writing...",
+      style:{flex:1,border:"none",outline:"none",resize:"none",fontSize:14,lineHeight:1.7,color:BLK,background:"none",fontFamily:"inherit",minHeight:400}
+    }):
+    ce("div",{style:{fontSize:14,lineHeight:1.7,color:BLK,whiteSpace:"pre-wrap"}},editBody||ce("span",{style:{color:"#ccc"}},"No content yet"))
+  ):ce("div",{style:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:"#ccc"}},
+    Ico("note",32,"#DDD"),
+    ce("div",{style:{fontSize:13}},"Select a note or create a new one")
+  );
+
+  return ce("div",{style:{flex:1,minWidth:0}},
+    ce("div",{style:{marginBottom:12,display:"flex",alignItems:"center",gap:8}},
+      ce("span",{style:{fontSize:14,fontWeight:600,color:BLK}},"Notes"),
+      ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
+      ce("span",{style:{fontSize:12,color:"#888"}},"Private, contextual & shared")
+    ),
+    ce("div",{style:{background:WH,borderRadius:12,border:"0.5px solid #E2E2E0",display:"flex",minHeight:520,overflow:"hidden"}},
+      noteList,
+      ce("div",{style:{flex:1,padding:"16px 20px",display:"flex",flexDirection:"column"}},editor)
+    )
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────
 function App(){
   var [cu,setCu]=useState(null);
@@ -1293,7 +1463,8 @@ function App(){
         ce("button",{onClick:function(){setView("board");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="board"?600:400,background:view==="board"?MB:"#F7F7F6",color:view==="board"?BLK:"#666",border:"none",cursor:"pointer"}},"Board"),
         ce("button",{onClick:function(){setView("calendar");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="calendar"?600:400,background:view==="calendar"?MB:"#F7F7F6",color:view==="calendar"?BLK:"#666",border:"none",cursor:"pointer"}},"Monthly"),
         ce("button",{onClick:function(){setView("quarterly");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="quarterly"?600:400,background:view==="quarterly"?MB:"#F7F7F6",color:view==="quarterly"?BLK:"#666",border:"none",cursor:"pointer"}},"Quarterly"),
-        ce("button",{onClick:function(){setView("recurring");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="recurring"?600:400,background:view==="recurring"?MB:"#F7F7F6",color:view==="recurring"?BLK:"#666",border:"none",cursor:"pointer"}},"Recurring")
+        ce("button",{onClick:function(){setView("recurring");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="recurring"?600:400,background:view==="recurring"?MB:"#F7F7F6",color:view==="recurring"?BLK:"#666",border:"none",cursor:"pointer"}},"Recurring"),
+        ce("button",{onClick:function(){setView("notes");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="notes"?600:400,background:view==="notes"?MB:"#F7F7F6",color:view==="notes"?BLK:"#666",border:"none",cursor:"pointer"}},"Notes")
       ),
       cu==="Gin"?ce("button",{onClick:function(){setProxyView(function(v){return !v;});},style:{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:9,border:proxyView?"1.5px solid #00965E":"1px solid #DDD",background:proxyView?"#E0F7EE":"#F7F7F6",cursor:"pointer",fontSize:12,fontWeight:proxyView?600:400,color:proxyView?MD:"#555"}},
         Av("Jhonatan",20),proxyView?"Jhonatan View":"View as Jhonatan"
@@ -1340,6 +1511,7 @@ function App(){
         view==="calendar"?calView:
         view==="quarterly"?ce(QuarterlyView,{tasks:base,cu:cu,onTaskClick:function(t){setEditT(t);setModal(true);}}):
         view==="recurring"?ce(RecurringView,{tasks:base,cu:cu,onReload:loadTasks}):
+        view==="notes"?ce(NotesView,{cu:cu}):
         boardView
       )
     ),
