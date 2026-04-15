@@ -1380,10 +1380,20 @@ function App(){
     sb.from("tasks").delete().eq("id",task.id).then(function(){loadTasks();});
     setDeleteRecurT(null);
   }
+  function clearDone(){
+    // Get all Done tasks visible to this user
+    var doneTasks=sorted.filter(function(t){return t.status==="Done"&&!t._virtual;});
+    if(doneTasks.length===0)return;
+    // For recurring tasks in Done: just delete that instance (recur is already "None" since
+    // spawnNext strips recur, or they were marked done-only). For non-recurring: delete fully.
+    var ids=doneTasks.map(function(t){return t.id;});
+    sb.from("tasks").delete().in("id",ids).then(function(){loadTasks();});
+  }
   function doComplete(task){if(task.recur&&task.recur!=="None"){setRecurT(task);}else{moveTask(task.id,"Done");}}
   function spawnNext(){
     var t=recurT,nd=addInt(t.due,t.recur);
-    sb.from("tasks").update({status:"Done"}).eq("id",t.id).then(function(){
+    // Mark completed instance as Done and strip recur so it's just a completed task
+    sb.from("tasks").update({status:"Done",recur:"None"}).eq("id",t.id).then(function(){
       var newTask=taskToDb(Object.assign({},t,{status:"To Do",due:nd,subtasks:t.subtasks.map(function(s){return Object.assign({},s,{done:false});})}),t.by);
       sb.from("tasks").insert([newTask]).then(function(){loadTasks();});
     });
@@ -1408,14 +1418,16 @@ function App(){
     var cm=CC[col];
     var items=sorted.filter(function(t){return t.status===col;});
     var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:effectiveCu,onMove:t._virtual?function(){}:moveTask,onEdit:function(tk){if(!tk._virtual){setEditT(tk);setModal(true);}},onDel:t._virtual?function(){}:delTask,onComplete:t._virtual?function(){}:doComplete});});
-    return ce("div",{key:col},
-      ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"7px 10px",background:cm.bg,borderRadius:8,border:"0.5px solid "+cm.ac+"33"}},
-        ce("span",{style:{width:8,height:8,borderRadius:"50%",background:cm.ac,flexShrink:0}}),
-        ce("span",{style:{fontSize:13,fontWeight:600,color:cm.tx,flex:1}},col),
-        ce("span",{style:{fontSize:12,color:cm.tx,background:"rgba(255,255,255,.75)",borderRadius:20,padding:"1px 8px",border:"0.5px solid "+cm.ac+"44"}},items.length)
-      ),
-      cards
+    var colHeader=ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"7px 10px",background:cm.bg,borderRadius:8,border:"0.5px solid "+cm.ac+"33"}},
+      ce("span",{style:{width:8,height:8,borderRadius:"50%",background:cm.ac,flexShrink:0}}),
+      ce("span",{style:{fontSize:13,fontWeight:600,color:cm.tx,flex:1}},col),
+      ce("span",{style:{fontSize:12,color:cm.tx,background:"rgba(255,255,255,.75)",borderRadius:20,padding:"1px 8px",border:"0.5px solid "+cm.ac+"44"}},items.length),
+      col==="Done"&&items.length>0?ce("button",{
+        onClick:function(){if(window.confirm("Clear all "+items.length+" completed task"+(items.length===1?"":"s")+"? This cannot be undone."))clearDone();},
+        style:{marginLeft:4,padding:"2px 9px",borderRadius:6,border:"1px solid #FCA5A5",background:"none",color:"#DC2626",fontSize:11,fontWeight:500,cursor:"pointer",whiteSpace:"nowrap"}
+      },"Clear all"):null
     );
+    return ce("div",{key:col},colHeader,cards);
   });
 
   var boardView=ce("div",{style:{flex:1,minWidth:0}},
