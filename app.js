@@ -164,48 +164,29 @@ var PINS={Jhonatan:"2013",Sarah:"0222",Gin:"0221"};
 
 // ── PinScreen ──────────────────────────────────────────────────────────────
 function PinScreen(props){
-  var name=props.name;
-  var u=USERS[name];
+  var name=props.name,u=USERS[name];
   var [digits,setDigits]=useState(["","","",""]);
   var [err,setErr]=useState(false);
   var [shake,setShake]=useState(false);
   var refs=[React.useRef(),React.useRef(),React.useRef(),React.useRef()];
-
   function handleChange(i,val){
     if(!/^\d?$/.test(val))return;
     var next=digits.slice();next[i]=val;setDigits(next);setErr(false);
-    if(val&&i<3){refs[i+1].current&&refs[i+1].current.focus();}
+    if(val&&i<3)refs[i+1].current&&refs[i+1].current.focus();
   }
   function handleKeyDown(i,e){
-    if(e.key==="Backspace"&&!digits[i]&&i>0){refs[i-1].current&&refs[i-1].current.focus();}
-    if(e.key==="Enter"){trySubmit(digits);}
+    if(e.key==="Backspace"&&!digits[i]&&i>0)refs[i-1].current&&refs[i-1].current.focus();
+    if(e.key==="Enter")trySubmit(digits);
   }
   function handlePaste(e){
     var p=e.clipboardData.getData("text").replace(/\D/g,"").slice(0,4);
-    if(p.length===4){
-      var nd=p.split("");setDigits(nd);
-      refs[3].current&&refs[3].current.focus();
-      setTimeout(function(){trySubmit(nd);},80);
-    }
+    if(p.length===4){var nd=p.split("");setDigits(nd);refs[3].current&&refs[3].current.focus();setTimeout(function(){trySubmit(nd);},80);}
   }
   function trySubmit(d){
-    var entered=d.join("");
-    if(entered===PINS[name]){props.onSuccess();}
-    else{
-      setErr(true);setShake(true);
-      setTimeout(function(){setDigits(["","","",""]);setShake(false);refs[0].current&&refs[0].current.focus();},600);
-    }
+    if(d.join("")===PINS[name]){props.onSuccess();}
+    else{setErr(true);setShake(true);setTimeout(function(){setDigits(["","","",""]);setShake(false);refs[0].current&&refs[0].current.focus();},600);}
   }
-
-  var boxStyle=function(i){return{
-    width:52,height:60,borderRadius:10,textAlign:"center",fontSize:26,fontWeight:700,
-    border:err?"2px solid #EF4444":digits[i]?"2px solid "+u.color:"1.5px solid #DDD",
-    background:err?"#FEF2F2":digits[i]?u.bg:"#FAFAFA",
-    color:"transparent",caretColor:u.color,outline:"none",
-    boxShadow:digits[i]&&!err?"0 0 0 3px "+u.bg:"none",
-    transition:"border-color .15s,background .15s",
-  };};
-
+  var boxStyle=function(i){return{width:52,height:60,borderRadius:10,textAlign:"center",fontSize:26,fontWeight:700,border:err?"2px solid #EF4444":digits[i]?"2px solid "+u.color:"1.5px solid #DDD",background:err?"#FEF2F2":digits[i]?u.bg:"#FAFAFA",color:"transparent",caretColor:u.color,outline:"none",transition:"border-color .15s,background .15s"};};
   return ce("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,"+MD+" 0%,"+MB+" 60%,"+ML+" 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 16px"}},
     ce("div",{style:{marginBottom:28}},ColorBar()),
     ce("div",{style:{background:"rgba(255,255,255,.97)",borderRadius:20,padding:"36px 40px",display:"flex",flexDirection:"column",alignItems:"center",gap:24,boxShadow:"0 8px 40px rgba(0,0,0,.15)",minWidth:300}},
@@ -214,17 +195,10 @@ function PinScreen(props){
         ce("div",{style:{fontSize:17,fontWeight:700,color:BLK}},name),
         ce("div",{style:{fontSize:12,color:"#999"}},"Enter your 4-digit PIN")
       ),
-      ce("div",{style:{display:"flex",gap:10,transform:shake?"translateX(0)":"none",animation:shake?"shake .4s":"none"}},
+      ce("div",{style:{display:"flex",gap:10,animation:shake?"shake .4s":"none"}},
         digits.map(function(d,i){
           return ce("div",{key:i,style:{position:"relative"}},
-            ce("input",{
-              ref:refs[i],type:"tel",maxLength:1,value:d,
-              autoFocus:i===0,
-              onChange:function(e){handleChange(i,e.target.value);},
-              onKeyDown:function(e){handleKeyDown(i,e);},
-              onPaste:handlePaste,
-              style:boxStyle(i)
-            }),
+            ce("input",{ref:refs[i],type:"tel",maxLength:1,value:d,autoFocus:i===0,onChange:function(e){handleChange(i,e.target.value);},onKeyDown:function(e){handleKeyDown(i,e);},onPaste:handlePaste,style:boxStyle(i)}),
             d?ce("div",{style:{position:"absolute",top:0,left:0,right:0,bottom:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
               ce("div",{style:{width:12,height:12,borderRadius:"50%",background:err?"#EF4444":u.color}})
             ):null
@@ -234,11 +208,7 @@ function PinScreen(props){
       err?ce("div",{style:{fontSize:13,color:"#EF4444",fontWeight:500}},"Incorrect PIN — try again"):null,
       ce("div",{style:{display:"flex",gap:10,width:"100%"}},
         ce("button",{onClick:props.onBack,style:{flex:1,padding:"10px",borderRadius:10,border:"1.5px solid #DDD",background:WH,color:"#666",fontSize:14,cursor:"pointer"}},"← Back"),
-        ce("button",{
-          onClick:function(){trySubmit(digits);},
-          disabled:digits.join("").length<4,
-          style:{flex:2,padding:"10px",borderRadius:10,border:"none",background:digits.join("").length===4?u.color:"#DDD",color:digits.join("").length===4?WH:"#aaa",fontSize:14,fontWeight:600,cursor:digits.join("").length===4?"pointer":"default",transition:"background .15s"}
-        },"Unlock")
+        ce("button",{onClick:function(){trySubmit(digits);},disabled:digits.join("").length<4,style:{flex:2,padding:"10px",borderRadius:10,border:"none",background:digits.join("").length===4?u.color:"#DDD",color:digits.join("").length===4?WH:"#aaa",fontSize:14,fontWeight:600,cursor:digits.join("").length===4?"pointer":"default",transition:"background .15s"}},"Unlock")
       )
     ),
     ce("style",null,"@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}")
@@ -248,15 +218,7 @@ function PinScreen(props){
 // ── Login ──────────────────────────────────────────────────────────────────
 function Login(props){
   var [selected,setSelected]=useState(null);
-
-  if(selected){
-    return ce(PinScreen,{
-      name:selected,
-      onSuccess:function(){props.onLogin(selected);},
-      onBack:function(){setSelected(null);}
-    });
-  }
-
+  if(selected){return ce(PinScreen,{name:selected,onSuccess:function(){props.onLogin(selected);},onBack:function(){setSelected(null);}});}
   return ce("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,"+MD+" 0%,"+MB+" 60%,"+ML+" 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 16px"}},
     ce("div",{style:{marginBottom:28}},ColorBar()),
     ce("div",{style:{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}},
@@ -355,7 +317,7 @@ function TaskModal(props){
   var inp={width:"100%",padding:"8px 10px",borderRadius:7,border:"0.5px solid #DDD",background:WH,fontSize:14,color:BLK,boxSizing:"border-box"};
   var lb={fontSize:12,color:"#666",display:"block",marginBottom:4,fontWeight:500};
   var nodes=TREE.filter(function(n){return n.subs.some(function(c){return uctxs.indexOf(c.id)>=0;});});
-  var assignable=Object.keys(USERS).filter(function(u){if(u==="Gin"&&!USERS[cu].canGin)return false;return USERS[u].ctxs.indexOf(f.ctx)>=0||u===cu;});
+  var assignable=Object.keys(USERS).filter(function(u){if(u==="Gin"&&!USERS[cu].canGin&&cu!=="Gin")return false;return USERS[u].ctxs.indexOf(f.ctx)>=0||u===cu;});
   var isPersonal=isPers(f.ctx);
 
   var catNodes=nodes.map(function(node){
@@ -565,6 +527,7 @@ function App(){
   var [modal,setModal]=useState(false);
   var [editT,setEditT]=useState(null);
   var [recurT,setRecurT]=useState(null);
+  var [sideOpen,setSideOpen]=useState(window.innerWidth>=700);
 
   // load tasks from supabase
   var loadTasks=useCallback(function(){
@@ -677,7 +640,7 @@ function App(){
       sortBtns,
       srt?ce("button",{onClick:function(){setSrt(null);},style:{fontSize:11,color:"#999",background:"none",border:"none",cursor:"pointer",padding:"2px 4px"}},"x clear"):null
     ),
-    loading?ce("div",{style:{textAlign:"center",padding:40,color:"#aaa",fontSize:13}},"Loading tasks..."):ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:10}},colEls)
+    loading?ce("div",{style:{textAlign:"center",padding:40,color:"#aaa",fontSize:13}},"Loading tasks..."):ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10}},colEls)
   );
 
   var calView=ce("div",{style:{flex:1,minWidth:0}},
@@ -689,18 +652,24 @@ function App(){
     ce(CalendarView,{cu:cu,tasks:allVis})
   );
 
-  var topBar=ce("div",{style:{background:WH,borderRadius:12,padding:"12px 16px",marginBottom:12,border:"0.5px solid #E2E2E0",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
+  var topBar=ce("div",{style:{background:WH,borderRadius:12,padding:"10px 14px",marginBottom:12,border:"0.5px solid #E2E2E0",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+    // Sidebar toggle button
+    ce("button",{onClick:function(){setSideOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:8,border:"0.5px solid #DDD",background:sideOpen?"#E8FBF1":"#F7F7F6",cursor:"pointer",flexShrink:0}},
+      svg(sideOpen?["M3 5h10","M3 8h7","M3 11h4"]:["M3 5h10","M3 8h10","M3 11h10"],16,16,sideOpen?MD:"#666")
+    ),
     ColorBar(),
-    ce("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
-      statEls,
-      ce("button",{onClick:function(){setEditT(null);setModal(true);},style:{display:"flex",alignItems:"center",gap:6,padding:"7px 13px",borderRadius:9,fontSize:13,fontWeight:600,border:"none",background:MB,color:BLK,cursor:"pointer"}},Ico("plus",14,BLK)," New task"),
+    ce("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",flex:1}},
+      statEls
+    ),
+    ce("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
+      ce("button",{onClick:function(){setEditT(null);setModal(true);},style:{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:9,fontSize:13,fontWeight:600,border:"none",background:MB,color:BLK,cursor:"pointer"}},Ico("plus",14,BLK)," New task"),
       ce("div",{style:{display:"flex",border:"0.5px solid #DDD",borderRadius:8,overflow:"hidden"}},
-        ce("button",{onClick:function(){setView("board");},style:{padding:"6px 12px",fontSize:12,fontWeight:view==="board"?600:400,background:view==="board"?MB:"#F7F7F6",color:view==="board"?BLK:"#666",border:"none",cursor:"pointer"}},"Board"),
-        ce("button",{onClick:function(){setView("calendar");},style:{padding:"6px 12px",fontSize:12,fontWeight:view==="calendar"?600:400,background:view==="calendar"?MB:"#F7F7F6",color:view==="calendar"?BLK:"#666",border:"none",cursor:"pointer"}},"Calendar")
+        ce("button",{onClick:function(){setView("board");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="board"?600:400,background:view==="board"?MB:"#F7F7F6",color:view==="board"?BLK:"#666",border:"none",cursor:"pointer"}},"Board"),
+        ce("button",{onClick:function(){setView("calendar");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="calendar"?600:400,background:view==="calendar"?MB:"#F7F7F6",color:view==="calendar"?BLK:"#666",border:"none",cursor:"pointer"}},"Calendar")
       ),
-      ce("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0"}},
-        Av(cu,26),
-        ce("div",null,ce("div",{style:{fontSize:12,fontWeight:600,color:BLK,lineHeight:1.2}},cu)),
+      ce("div",{style:{display:"flex",alignItems:"center",gap:7,padding:"5px 9px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0"}},
+        Av(cu,24),
+        ce("div",{style:{fontSize:12,fontWeight:600,color:BLK,lineHeight:1.2}},cu),
         ce("button",{onClick:function(){setCu(null);},style:{background:"none",border:"none",cursor:"pointer",color:"#bbb",display:"flex",padding:3,marginLeft:2}},Ico("logout",14))
       )
     )
@@ -713,9 +682,30 @@ function App(){
 
   return ce("div",{style:{background:"#F2F2F0",minHeight:"100vh",padding:14,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}},
     topBar,
-    ce("div",{style:{display:"flex",gap:12,alignItems:"flex-start"}},
-      ce("div",{style:{background:WH,borderRadius:12,padding:"12px 10px",border:"0.5px solid #E2E2E0",flexShrink:0}},ce(Sidebar,{cu:cu,sel:sel,onSel:setSel,tasks:allVis,af:af,setAf:setAf})),
-      view==="calendar"?calView:boardView
+    ce("div",{style:{display:"flex",gap:12,alignItems:"flex-start",position:"relative"}},
+      // Sidebar — on mobile overlays as a drawer, on desktop stays inline
+      sideOpen?ce("div",{style:{
+        background:WH,borderRadius:12,padding:"12px 10px",border:"0.5px solid #E2E2E0",flexShrink:0,
+        position:window.innerWidth<700?"fixed":"relative",
+        top:window.innerWidth<700?0:undefined,
+        left:window.innerWidth<700?0:undefined,
+        bottom:window.innerWidth<700?0:undefined,
+        zIndex:window.innerWidth<700?150:undefined,
+        width:window.innerWidth<700?"75vw":undefined,
+        boxShadow:window.innerWidth<700?"4px 0 24px rgba(0,0,0,.18)":undefined,
+        overflowY:window.innerWidth<700?"auto":undefined,
+        paddingTop:window.innerWidth<700?20:undefined,
+      }},
+        // Close button on mobile
+        window.innerWidth<700?ce("button",{onClick:function(){setSideOpen(false);},style:{position:"absolute",top:12,right:12,background:"none",border:"none",cursor:"pointer",color:"#aaa",display:"flex",padding:4}},Ico("x",16)):null,
+        ce(Sidebar,{cu:cu,sel:sel,onSel:function(s){setSel(s);if(window.innerWidth<700)setSideOpen(false);},tasks:allVis,af:af,setAf:setAf})
+      ):null,
+      // Mobile backdrop
+      sideOpen&&window.innerWidth<700?ce("div",{onClick:function(){setSideOpen(false);},style:{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",zIndex:140}}):null,
+      // Main content
+      ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
+        view==="calendar"?calView:boardView
+      )
     ),
     modalEl,recurEl
   );
