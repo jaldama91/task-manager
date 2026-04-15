@@ -536,10 +536,42 @@ function TaskModal(props){
       ce("textarea",{style:Object.assign({},inp,{marginBottom:14,minHeight:52,resize:"vertical"}),value:f.notes,onChange:function(e){set("notes",e.target.value);},placeholder:"Optional notes..."}),
       ce("label",{style:lb},"Subtasks"),
       ce("div",{style:{marginBottom:8}},f.subtasks.map(function(s,i){
-        return ce("div",{key:i,style:{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"0.5px solid #EEE"}},
+        return ce("div",{key:i,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",borderRadius:7,border:"0.5px solid #E8E8E6",background:"#FAFAF9",marginBottom:4}},
+          // Checkbox
           ce("div",{onClick:function(){set("subtasks",f.subtasks.map(function(x,j){return j===i?Object.assign({},x,{done:!x.done}):x;}));},style:{width:16,height:16,borderRadius:4,border:"1.5px solid "+(s.done?MB:"#DDD"),background:s.done?MB:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}},s.done?Ico("check",10,"#fff"):null),
-          ce("span",{style:{fontSize:13,flex:1,textDecoration:s.done?"line-through":"none",color:s.done?"#aaa":BLK}},s.text),
-          ce("button",{onClick:function(){set("subtasks",f.subtasks.filter(function(_,j){return j!==i;}));},style:{background:"none",border:"none",cursor:"pointer",color:"#bbb",display:"flex",padding:2}},Ico("x",13))
+          // Editable text
+          ce("input",{
+            value:s.text,
+            onChange:function(e){
+              var val=e.target.value;
+              set("subtasks",f.subtasks.map(function(x,j){return j===i?Object.assign({},x,{text:val}):x;}));
+            },
+            style:{flex:1,fontSize:13,background:"none",border:"none",outline:"none",color:s.done?"#aaa":BLK,textDecoration:s.done?"line-through":"none",fontFamily:"inherit",padding:"1px 0",minWidth:0}
+          }),
+          // Move up
+          ce("button",{
+            onClick:function(){
+              if(i===0)return;
+              var a=f.subtasks.slice();
+              var tmp=a[i-1];a[i-1]=a[i];a[i]=tmp;
+              set("subtasks",a);
+            },
+            disabled:i===0,
+            style:{background:"none",border:"none",cursor:i===0?"default":"pointer",color:i===0?"#DDD":"#aaa",display:"flex",padding:"2px",flexShrink:0,borderRadius:4}
+          },svg(["M8 12V4","M4 8l4-4 4 4"],12,12,i===0?"#DDD":"#aaa")),
+          // Move down
+          ce("button",{
+            onClick:function(){
+              if(i===f.subtasks.length-1)return;
+              var a=f.subtasks.slice();
+              var tmp=a[i+1];a[i+1]=a[i];a[i]=tmp;
+              set("subtasks",a);
+            },
+            disabled:i===f.subtasks.length-1,
+            style:{background:"none",border:"none",cursor:i===f.subtasks.length-1?"default":"pointer",color:i===f.subtasks.length-1?"#DDD":"#aaa",display:"flex",padding:"2px",flexShrink:0,borderRadius:4}
+          },svg(["M8 4v8","M4 8l4 4 4-4"],12,12,i===f.subtasks.length-1?"#DDD":"#aaa")),
+          // Delete
+          ce("button",{onClick:function(){set("subtasks",f.subtasks.filter(function(_,j){return j!==i;}));},style:{background:"none",border:"none",cursor:"pointer",color:"#ccc",display:"flex",padding:"2px",flexShrink:0,borderRadius:4}},Ico("x",12))
         );
       })),
       ce("div",{style:{display:"flex",gap:6,marginBottom:20}},
