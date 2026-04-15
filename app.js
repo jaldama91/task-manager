@@ -47,7 +47,7 @@ CTC["Misc Personal"]={bg:"#F1F5F9",tx:"#475569",bd:"#CBD5E1"};
 SWI.forEach(function(id){CTC[id]={bg:"#FEF0FF",tx:"#6B21A8",bd:"#D8B4FE"};});
 
 var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#EAB308",bg:"#FEF9C3",tx:"#854D0E"},P:{ac:"#6366F1",bg:"#EEF2FF",tx:"#3730A3"},SW:{ac:"#A855F7",bg:"#FEF0FF",tx:"#6B21A8"}};
-var CC={"To Do":{ac:"#111",tx:"#111",bg:"#F0F0EE"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
+var CC={"To Do":{ac:"#2563EB",tx:"#1E40AF",bg:"#EFF6FF"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
 var RC={bg:"#D4F7E5",tx:"#00965E",bd:"#2AD870"};
 function ctxLbl(ctx){return ctx.indexOf(":")>=0?ctx.split(":")[1]:ctx;}
 var DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -477,7 +477,8 @@ function TaskCard(props){
 // ── TaskModal ──────────────────────────────────────────────────────────────
 function TaskModal(props){
   var task=props.task,cu=props.cu;
-  var uctxs=USERS[cu].ctxs;
+  var effectiveCu=proxyView&&cu==="Gin"?"Jhonatan":cu;
+  var uctxs=proxyView&&cu==="Gin"?AI.filter(function(x){return PI.indexOf(x)<0;}):USERS[cu].ctxs;
   var defCtx=uctxs[0]||NI[0];
   var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",subtasks:[],recur:"None",recur_deadline:"None",by:cu,to:cu,shared:false,status:"To Do"};
   var initF=task?Object.assign({},task,{subtasks:task.subtasks.map(function(s){return Object.assign({},s);})}):blank;
@@ -692,7 +693,8 @@ function DeleteRecurModal(props){
 // ── Sidebar ────────────────────────────────────────────────────────────────
 function Sidebar(props){
   var cu=props.cu,sel=props.sel,tasks=props.tasks,af=props.af,setAf=props.setAf;
-  var uctxs=USERS[cu].ctxs;
+  var effectiveCu=proxyView&&cu==="Gin"?"Jhonatan":cu;
+  var uctxs=proxyView&&cu==="Gin"?AI.filter(function(x){return PI.indexOf(x)<0;}):USERS[cu].ctxs;
   var [exp,setExp]=useState({N:false,K:false,P:true});
   function cnt(arr){return tasks.filter(function(t){return arr.indexOf(t.ctx)>=0&&t.status!=="Done";}).length;}
   function togExp(id){setExp(function(e){return Object.assign({},e,{[id]:!e[id]});});}
@@ -758,8 +760,8 @@ function CalendarView(props){
   var todayStr=now.getFullYear()+"-"+padZ(now.getMonth()+1)+"-"+padZ(now.getDate());
   var firstDay=new Date(yr,mon,1).getDay();
   var daysInMonth=new Date(yr,mon+1,0).getDate();
-  var myTasks=tasks.filter(function(t){return t.due&&t.status!=="Done"&&(t.to===cu||t._virtual||(t.shared&&isPers(t.ctx)));});
-  var taskCount=myTasks.filter(function(t){return t.due&&t.due.slice(0,7)===monStr;}).length;
+  var myTasks=tasks.filter(function(t){var d=t._startDate||t.due;return d&&t.status!=="Done"&&(t.to===cu||t._virtual||(t.shared&&isPers(t.ctx)));});
+  var taskCount=myTasks.filter(function(t){var d=t._startDate||t.due;return d&&d.slice(0,7)===monStr;}).length;
   function prevMon(){if(mon===0){setMon(11);setYr(yr-1);}else{setMon(mon-1);}}
   function nextMon(){if(mon===11){setMon(0);setYr(yr+1);}else{setMon(mon+1);}}
   var cells=[];var i;
@@ -773,7 +775,7 @@ function CalendarView(props){
     var cellEls=rowCells.map(function(day,ci){
       if(!day){return ce("div",{key:"e"+ci,style:{minHeight:72}});}
       var ds=monStr+"-"+padZ(day);
-      var dayTasks=myTasks.filter(function(t){return t.due===ds;});
+      var dayTasks=myTasks.filter(function(t){var d=t._startDate||t.due;return d===ds;});
       var isToday=ds===todayStr;
       var isOver=new Date(ds)<now&&!isToday;
       var todayD=new Date().toISOString().slice(0,10);
@@ -887,7 +889,7 @@ function QuarterlyView(props){
           if(next.slice(0,4)===String(year)){
             // Don't duplicate the base task
             if(next!==t.due){
-              expanded.push(Object.assign({},t,{id:t.id+"_"+next,due:next,_expanded:true,_baseId:t.id}));
+              var qDue=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next,t.recur_deadline)||next:next;expanded.push(Object.assign({},t,{id:t.id+"_"+next,due:qDue,_startDate:next,_expanded:true,_baseId:t.id}));
             }
           }
           cur=next;
@@ -902,7 +904,7 @@ function QuarterlyView(props){
             if(!next2)break;
             if(next2.slice(0,4)>String(year))break;
             if(next2.slice(0,4)===String(year)){
-              expanded.push(Object.assign({},t,{id:t.id+"_"+next2,due:next2,_expanded:true,_baseId:t.id}));
+              var qDue2=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next2,t.recur_deadline)||next2:next2;expanded.push(Object.assign({},t,{id:t.id+"_"+next2,due:qDue2,_startDate:next2,_expanded:true,_baseId:t.id}));
             }
             cur2=next2;
           }
@@ -930,10 +932,15 @@ function QuarterlyView(props){
 
   var qEls=quarters.map(function(q){
     var qTasks=allExpanded.filter(function(t){
-      if(!t.due)return false;
-      var m=parseInt(t.due.slice(5,7))-1;
+      var d=t._startDate||t.due;
+      if(!d)return false;
+      var m=parseInt(d.slice(5,7))-1;
       return q.months.indexOf(m)>=0;
-    }).sort(function(a,b){return a.due>b.due?1:-1;});
+    }).sort(function(a,b){
+      var da=a._startDate||a.due||"9999";
+      var db2=b._startDate||b.due||"9999";
+      return da>db2?1:-1;
+    });
 
     var taskEls=qTasks.length===0
       ?ce("div",{style:{padding:"10px 0",color:"#ccc",fontSize:12,textAlign:"center"}},"No tasks")
@@ -987,6 +994,7 @@ function App(){
   var [sideOpen,setSideOpen]=useState(window.innerWidth>=700);
   var [deleteRecurT,setDeleteRecurT]=useState(null);
   var [filterPastDue,setFilterPastDue]=useState(false);
+  var [proxyView,setProxyView]=useState(false); // Gin viewing as Jhonatan
 
   // load tasks from supabase
   var loadTasks=useCallback(function(){
@@ -1005,13 +1013,14 @@ function App(){
     return function(){sb.removeChannel(channel);};
   },[cu,loadTasks]);
 
-  if(!cu){return ce(Login,{onLogin:function(u){setCu(u);setSel(u==="Jhonatan"?"All":u==="Sarah"?"P":"N");}});}
+  if(!cu){return ce(Login,{onLogin:function(u){setCu(u);setSel("All");setAf(u);setView("board");}});}
 
-  var uctxs=USERS[cu].ctxs;
+  var effectiveCu=proxyView&&cu==="Gin"?"Jhonatan":cu;
+  var uctxs=proxyView&&cu==="Gin"?AI.filter(function(x){return PI.indexOf(x)<0;}):USERS[cu].ctxs;
   var actCtxs=resolveCtxs(sel,uctxs);
   var realVis=tasks.filter(function(t){
     if(uctxs.indexOf(t.ctx)>=0)return true;
-    if(t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah"))return true;
+    if(t.shared&&isPers(t.ctx)&&(effectiveCu==="Jhonatan"||effectiveCu==="Sarah")&&cu!=="Gin")return true;
     return false;
   });
   // Add virtual recurring occurrences (next 90 days) for board/monthly/quarterly
@@ -1022,13 +1031,15 @@ function App(){
     var inCtx=actCtxs.indexOf(t.ctx)>=0;
     var isPersonalSel=sel==="All"||sel==="P";
     var isMatchingSub=sel===t.ctx;
-    var sv=t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah")&&(isPersonalSel||isMatchingSub);
+    var sv=t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah")&&(isPersonalSel||isMatchingSub)&&cu!=="Gin";
     if(!inCtx&&!sv)return false;
     if(af!=="All"&&!t.shared&&t.to!==af)return false;
+    // In proxy view, show Jhonatan's tasks
+    if(proxyView&&cu==="Gin"&&t.ctx&&PI.indexOf(t.ctx)>=0)return false;
     return true;
   });
   var todayStr2=new Date().toISOString().slice(0,10);
-  var baseFiltered=filterPastDue?base.filter(function(t){return t.due&&t.due<todayStr2&&t.status!=="Done";}):base;
+  var baseFiltered=filterPastDue?base.filter(function(t){return t.due&&t.due.slice(0,10)<todayStr2&&t.status!=="Done"&&!t._virtual;}):base;
   var sorted=srt?baseFiltered.slice().sort(function(a,b){
     if(srt==="pa")return PO[a.pri]-PO[b.pri];
     if(srt==="pd")return PO[b.pri]-PO[a.pri];
@@ -1039,12 +1050,12 @@ function App(){
 
   var openCnt=allVis.filter(function(t){return t.status!=="Done";}).length;
   var recCnt=allVis.filter(function(t){return t.recur!=="None"&&t.status!=="Done";}).length;
-  var mineCnt=allVis.filter(function(t){return(t.to===cu||t.shared)&&t.status!=="Done";}).length;
+  var mineCnt=allVis.filter(function(t){return(t.to===effectiveCu||t.shared)&&t.status!=="Done";}).length;
   var vl=getVL(sel);
   var roleLbl=cu==="Gin"?"Work only":cu==="Sarah"?"Personal & Rentals":"Full access";
 
   function saveTask(form){
-    var data=taskToDb(form,cu);
+    var data=taskToDb(form,proxyView&&cu==="Gin"?"Jhonatan":cu);
     if(editT){
       sb.from("tasks").update(data).eq("id",editT.id).then(function(){loadTasks();});
     } else {
@@ -1101,7 +1112,7 @@ function App(){
   var colEls=COLS.map(function(col){
     var cm=CC[col];
     var items=sorted.filter(function(t){return t.status===col;});
-    var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:cu,onMove:t._virtual?function(){}:moveTask,onEdit:function(tk){if(!tk._virtual){setEditT(tk);setModal(true);}},onDel:t._virtual?function(){}:delTask,onComplete:t._virtual?function(){}:doComplete});});
+    var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:effectiveCu,onMove:t._virtual?function(){}:moveTask,onEdit:function(tk){if(!tk._virtual){setEditT(tk);setModal(true);}},onDel:t._virtual?function(){}:delTask,onComplete:t._virtual?function(){}:doComplete});});
     return ce("div",{key:col},
       ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"7px 10px",background:cm.bg,borderRadius:8,border:"0.5px solid "+cm.ac+"33"}},
         ce("span",{style:{width:8,height:8,borderRadius:"50%",background:cm.ac,flexShrink:0}}),
@@ -1155,16 +1166,19 @@ function App(){
         ce("button",{onClick:function(){setView("quarterly");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="quarterly"?600:400,background:view==="quarterly"?MB:"#F7F7F6",color:view==="quarterly"?BLK:"#666",border:"none",cursor:"pointer"}},"Quarterly"),
         ce("button",{onClick:function(){setView("recurring");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="recurring"?600:400,background:view==="recurring"?MB:"#F7F7F6",color:view==="recurring"?BLK:"#666",border:"none",cursor:"pointer"}},"Recurring")
       ),
+      cu==="Gin"?ce("button",{onClick:function(){setProxyView(function(v){return !v;});},style:{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:9,border:proxyView?"1.5px solid #00965E":"1px solid #DDD",background:proxyView?"#E0F7EE":"#F7F7F6",cursor:"pointer",fontSize:12,fontWeight:proxyView?600:400,color:proxyView?MD:"#555"}},
+        Av("Jhonatan",20),proxyView?"Jhonatan View":"View as Jhonatan"
+      ):null,
       ce("div",{style:{display:"flex",alignItems:"center",gap:7,padding:"5px 9px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0"}},
         Av(cu,24),
-        ce("div",{style:{fontSize:12,fontWeight:600,color:BLK,lineHeight:1.2}},cu),
-        ce("button",{onClick:function(){setCu(null);},style:{background:"none",border:"none",cursor:"pointer",color:"#bbb",display:"flex",padding:3,marginLeft:2}},Ico("logout",14))
+        ce("div",{style:{fontSize:12,fontWeight:600,color:BLK,lineHeight:1.2}},proxyView&&cu==="Gin"?"Acting as Jhonatan":cu),
+        ce("button",{onClick:function(){setCu(null);setProxyView(false);},style:{background:"none",border:"none",cursor:"pointer",color:"#bbb",display:"flex",padding:3,marginLeft:2}},Ico("logout",14))
       )
     )
   );
 
   var modalEl=null;
-  if(modal){modalEl=ce(TaskModal,{task:editT,cu:cu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);}});}
+  if(modal){modalEl=ce(TaskModal,{task:editT,cu:effectiveCu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);}});}
   var recurEl=null;
   if(recurT){recurEl=ce(RecurModal,{task:recurT,onSpawn:spawnNext,onArchive:function(){moveTask(recurT.id,"Done");setRecurT(null);},onClose:function(){setRecurT(null);}});}
   var deleteRecurEl=null;
@@ -1188,7 +1202,7 @@ function App(){
       }},
         // Close button on mobile
         window.innerWidth<700?ce("button",{onClick:function(){setSideOpen(false);},style:{position:"absolute",top:12,right:12,background:"none",border:"none",cursor:"pointer",color:"#aaa",display:"flex",padding:4}},Ico("x",16)):null,
-        ce(Sidebar,{cu:cu,sel:sel,onSel:function(s){setSel(s);if(window.innerWidth<700)setSideOpen(false);},tasks:allVis,af:af,setAf:setAf})
+        ce(Sidebar,{cu:proxyView&&cu==="Gin"?"Jhonatan":cu,sel:sel,onSel:function(s){setSel(s);if(window.innerWidth<700)setSideOpen(false);},tasks:allVis,af:af,setAf:setAf})
       ):null,
       // Mobile backdrop
       sideOpen&&window.innerWidth<700?ce("div",{onClick:function(){setSideOpen(false);},style:{position:"fixed",inset:0,background:"rgba(0,0,0,.35)",zIndex:140}}):null,
