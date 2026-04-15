@@ -477,8 +477,7 @@ function TaskCard(props){
 // ── TaskModal ──────────────────────────────────────────────────────────────
 function TaskModal(props){
   var task=props.task,cu=props.cu;
-  var effectiveCu=proxyView&&cu==="Gin"?"Jhonatan":cu;
-  var uctxs=proxyView&&cu==="Gin"?AI.filter(function(x){return PI.indexOf(x)<0;}):USERS[cu].ctxs;
+  var uctxs=USERS[cu]?USERS[cu].ctxs:(USERS["Jhonatan"].ctxs);
   var defCtx=uctxs[0]||NI[0];
   var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",subtasks:[],recur:"None",recur_deadline:"None",by:cu,to:cu,shared:false,status:"To Do"};
   var initF=task?Object.assign({},task,{subtasks:task.subtasks.map(function(s){return Object.assign({},s);})}):blank;
@@ -693,8 +692,7 @@ function DeleteRecurModal(props){
 // ── Sidebar ────────────────────────────────────────────────────────────────
 function Sidebar(props){
   var cu=props.cu,sel=props.sel,tasks=props.tasks,af=props.af,setAf=props.setAf;
-  var effectiveCu=proxyView&&cu==="Gin"?"Jhonatan":cu;
-  var uctxs=proxyView&&cu==="Gin"?AI.filter(function(x){return PI.indexOf(x)<0;}):USERS[cu].ctxs;
+  var uctxs=USERS[cu]?USERS[cu].ctxs:AI.filter(function(x){return PI.indexOf(x)<0;});
   var [exp,setExp]=useState({N:false,K:false,P:true});
   function cnt(arr){return tasks.filter(function(t){return arr.indexOf(t.ctx)>=0&&t.status!=="Done";}).length;}
   function togExp(id){setExp(function(e){return Object.assign({},e,{[id]:!e[id]});});}
