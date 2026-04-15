@@ -194,7 +194,7 @@ function taskToDb(t,byUser){
   return {
     title:t.title, ctx:t.ctx, pri:t.pri, due:t.due||null,
     status:t.status, notes:t.notes||"", subtasks:t.subtasks||[],
-    recur:t.recur||"None", by_user:byUser||t.by, to_user:t.to, shared:!!t.shared
+    recur:t.recur||"None", by_user:byUser||t.by||t.by_user, to_user:t.to||t.to_user, shared:!!t.shared
   };
 }
 
@@ -407,7 +407,7 @@ function TaskModal(props){
   var task=props.task,cu=props.cu;
   var uctxs=USERS[cu].ctxs;
   var defCtx=uctxs[0]||NI[0];
-  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",subtasks:[],recur:"None",by:cu,to:cu,shared:false};
+  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",subtasks:[],recur:"None",by:cu,to:cu,shared:false,status:"To Do"};
   var initF=task?Object.assign({},task,{subtasks:task.subtasks.map(function(s){return Object.assign({},s);})}):blank;
   var [f,setF]=useState(initF);
   var [stxt,setStxt]=useState("");
