@@ -50,6 +50,17 @@ var PC={N:{ac:"#2AD870",bg:"#E8FBF1",tx:"#065F46"},K:{ac:"#EAB308",bg:"#FEF9C3",
 var CC={"To Do":{ac:"#2563EB",tx:"#1E40AF",bg:"#EFF6FF"},"In Progress":{ac:"#2AD870",tx:"#065F46",bg:"#E8FBF1"},"Done":{ac:"#00965E",tx:"#065F46",bg:"#D4F7E5"}};
 var RC={bg:"#D4F7E5",tx:"#00965E",bd:"#2AD870"};
 function ctxLbl(ctx){return ctx.indexOf(":")>=0?ctx.split(":")[1]:ctx;}
+function ctxParent(ctx){
+  // Returns the parent category label for a ctx id
+  for(var i=0;i<TREE.length;i++){
+    for(var j=0;j<TREE[i].subs.length;j++){
+      if(TREE[i].subs[j].id===ctx)return TREE[i].label;
+    }
+    // If ctx IS a parent id
+    if(TREE[i].id===ctx)return TREE[i].label;
+  }
+  return ctx;
+}
 var DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 var ORDINALS=["1st","2nd","3rd","4th","5th"];
 var COLS=["To Do","In Progress","Done"];
@@ -60,7 +71,7 @@ var MB="#2AD870",ML="#8FF9BA",MD="#00965E",BLK="#111",WH="#fff";
 function fmt(s){if(!s)return "";var p=s.split("-");return p[1]+"/"+p[2]+"/"+p[0].slice(2);}
 function padZ(n){return String(n).padStart(2,"0");}
 // ── Recur helpers ──────────────────────────────────────────────────────────
-// recur format:  "None" | "WEEKLY:Monday" | "MONTHLY_DATE:15" | "MONTHLY_DAY:2:Tuesday" | "EVERY_N:10"
+// recur format:  "None" | "WEEKLY:Monday" | "MONTHLY_DATE:15" | "MONTHLY_DAY:2:Tuesday" | "EVERY_N:10" | "YEARLY:MM-DD" | "QUARTERLY:MM-DD"
 function recurLabel(r){
   if(!r||r==="None")return null;
   var p=r.split(":");
@@ -68,6 +79,8 @@ function recurLabel(r){
   if(p[0]==="MONTHLY_DATE")return "Every "+p[1]+(p[1]==="1"?"st":p[1]==="2"?"nd":p[1]==="3"?"rd":"th");
   if(p[0]==="MONTHLY_DAY") return "Every "+ORDINALS[parseInt(p[1])-1]+" "+p[2];
   if(p[0]==="EVERY_N")     return "Every "+p[1]+" days";
+  if(p[0]==="YEARLY")       return "Every year on "+fmt(new Date().getFullYear()+"-"+p[1]);
+  if(p[0]==="QUARTERLY")    return "Every quarter on "+fmt(new Date().getFullYear()+"-"+p[1]);
   return r;
 }
 function addInt(d,r){
@@ -96,6 +109,23 @@ function addInt(d,r){
     dt.setDate(1);
     var count=0;
     while(count<nth){if(dt.getDay()===wday)count++;if(count<nth)dt.setDate(dt.getDate()+1);}
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="YEARLY"){
+    // p[1] = MM-DD
+    var parts=p[1].split("-");
+    dt.setFullYear(dt.getFullYear()+1);
+    dt.setMonth(parseInt(parts[0])-1);
+    dt.setDate(parseInt(parts[1]));
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="QUARTERLY"){
+    // p[1] = MM-DD (the day within each quarter)
+    var qparts=p[1].split("-");
+    var qmonth=parseInt(qparts[0])-1; // 0-based target month within quarter
+    dt.setMonth(dt.getMonth()+3);
+    // Set to the same day-of-quarter pattern
+    dt.setDate(parseInt(qparts[1]));
     return dt.toISOString().slice(0,10);
   }
   return null;
@@ -167,8 +197,8 @@ function RecurPicker(props){
   var type=val==="None"?"None":p[0];
 
   var inp={padding:"7px 10px",borderRadius:7,border:"0.5px solid #DDD",background:WH,fontSize:13,color:BLK,width:"100%"};
-  var typeBtns=["None","WEEKLY","MONTHLY_DATE","MONTHLY_DAY","EVERY_N"].map(function(t){
-    var labels={None:"None",WEEKLY:"Every weekday",MONTHLY_DATE:"Day of month",MONTHLY_DAY:"Nth weekday",EVERY_N:"Every X days"};
+  var typeBtns=["None","WEEKLY","MONTHLY_DATE","MONTHLY_DAY","EVERY_N","QUARTERLY","YEARLY"].map(function(t){
+    var labels={None:"None",WEEKLY:"Every weekday",MONTHLY_DATE:"Day of month",MONTHLY_DAY:"Nth weekday",EVERY_N:"Every X days",QUARTERLY:"Quarterly",YEARLY:"Yearly"};
     var a=type===t;
     return ce("button",{key:t,onClick:function(){
       if(t==="None")onChange("None");
@@ -176,6 +206,8 @@ function RecurPicker(props){
       else if(t==="MONTHLY_DATE")onChange("MONTHLY_DATE:1");
       else if(t==="MONTHLY_DAY")onChange("MONTHLY_DAY:1:Monday");
       else if(t==="EVERY_N")onChange("EVERY_N:7");
+      else if(t==="QUARTERLY")onChange("QUARTERLY:01-01");
+      else if(t==="YEARLY")onChange("YEARLY:01-01");
     },style:{padding:"5px 10px",borderRadius:20,fontSize:11,fontWeight:a?600:400,border:a?"1.5px solid "+MD:"0.5px solid #DDD",background:a?RC.bg:"#F7F7F6",color:a?MD:"#666",cursor:"pointer",whiteSpace:"nowrap"}},labels[t]);
   });
 
@@ -220,6 +252,25 @@ function RecurPicker(props){
     );
   }
 
+  if(type==="YEARLY"||type==="QUARTERLY"){
+    var mmdd=(p[1]||"01-01").split("-");
+    var months=[];for(var mi=1;mi<=12;mi++)months.push(mi);
+    var days2=[];for(var di=1;di<=31;di++)days2.push(di);
+    detail=ce("div",{style:{display:"flex",gap:8}},
+      ce("div",{style:{flex:1}},
+        ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},type==="YEARLY"?"Month of year":"Month of quarter (1-3)"),
+        ce("select",{value:mmdd[0]||"01",onChange:function(e){onChange(type+":"+e.target.value+"-"+(mmdd[1]||"01"));},style:inp},
+          (type==="YEARLY"?months:[1,2,3]).map(function(n){return ce("option",{key:n,value:padZ(n)},type==="YEARLY"?MN[n-1]:"Month "+n);})
+        )
+      ),
+      ce("div",{style:{flex:1}},
+        ce("label",{style:{fontSize:11,color:"#888",display:"block",marginBottom:4}},"Day"),
+        ce("select",{value:mmdd[1]||"01",onChange:function(e){onChange(type+":"+(mmdd[0]||"01")+"-"+e.target.value);},style:inp},
+          days2.map(function(n){return ce("option",{key:n,value:padZ(n)},n+(n===1?"st":n===2?"nd":n===3?"rd":"th"));})
+        )
+      )
+    );
+  }
   return ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
     ce("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},typeBtns),
     detail
@@ -267,7 +318,9 @@ function taskToDb(t,byUser){
   return {
     title:t.title, ctx:t.ctx, pri:t.pri, due:t.due||null,
     status:t.status, notes:t.notes||"", subtasks:t.subtasks||[],
-    recur:t.recur||"None", recur_deadline:t.recur_deadline||"None", by_user:byUser||t.by||t.by_user, to_user:t.to||t.to_user, shared:!!t.shared
+    recur:t.recur||"None", recur_deadline:t.recur_deadline||"None",
+    private_notes:t.private_notes||"", notify_notes:t.notify_notes||"",
+    by_user:byUser||t.by||t.by_user, to_user:t.to||t.to_user, shared:!!t.shared
   };
 }
 
@@ -449,7 +502,13 @@ function CardInner(props){
       );
     }):[];
     expandBody=ce("div",{style:{borderTop:"0.5px solid #EEE",padding:"10px 12px 12px",background:"#FAFAF9"},onClick:function(e){e.stopPropagation();}},
-      task.notes?ce("div",{style:{display:"flex",gap:7,marginBottom:10,padding:"8px 10px",background:"#F2F2F0",borderRadius:7}},Ico("note",14,"#999"),ce("span",{style:{fontSize:13,color:"#555",lineHeight:1.5}},task.notes)):null,
+      task.notify_notes&&task.to===cu?ce("div",{style:{display:"flex",gap:7,marginBottom:10,padding:"8px 10px",background:"#E0F2FB",borderRadius:7,border:"1px solid #7DD3F0"}},
+        ce("div",{style:{fontSize:11,fontWeight:600,color:"#0F6E9A",flexShrink:0,marginTop:1}},"📌 Note for you:"),
+        ce("span",{style:{fontSize:13,color:"#0C4A6E",lineHeight:1.5}},task.notify_notes)):null,
+    task.notes?ce("div",{style:{display:"flex",gap:7,marginBottom:10,padding:"8px 10px",background:"#F2F2F0",borderRadius:7}},Ico("note",14,"#999"),ce("span",{style:{fontSize:13,color:"#555",lineHeight:1.5}},task.notes)):null,
+    task.private_notes&&task.by===cu?ce("div",{style:{display:"flex",gap:7,marginBottom:10,padding:"8px 10px",background:"#FEF0FF",borderRadius:7,border:"1px solid #D8B4FE"}},
+        ce("div",{style:{fontSize:11,fontWeight:600,color:"#6B21A8",flexShrink:0,marginTop:1}},"🔒 Private:"),
+        ce("span",{style:{fontSize:13,color:"#4C1D95",lineHeight:1.5}},task.private_notes)):null,
       task.subtasks.length>0?ce("div",{style:{marginBottom:10}},subItems):null,
       rec&&task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 10px",background:RC.bg,borderRadius:7}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},recLbl+" · Next: "+fmt(addInt(task.due,task.recur)))):null,
       ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:4,flexWrap:"wrap",gap:8}},
@@ -488,7 +547,7 @@ function TaskModal(props){
   var task=props.task,cu=props.cu;
   var uctxs=USERS[cu]?USERS[cu].ctxs:(USERS["Jhonatan"].ctxs);
   var defCtx=uctxs[0]||NI[0];
-  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",subtasks:[],recur:"None",recur_deadline:"None",by:cu,to:cu,shared:false,status:"To Do"};
+  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",private_notes:"",notify_notes:"",subtasks:[],recur:"None",recur_deadline:"None",by:cu,to:cu,shared:false,status:"To Do"};
   var initF=task?Object.assign({},task,{subtasks:task.subtasks.map(function(s){return Object.assign({},s);})}):blank;
   var [f,setF]=useState(initF);
   var [stxt,setStxt]=useState("");
@@ -568,8 +627,24 @@ function TaskModal(props){
       f.recur!=="None"&&f.due&&(!f.recur_deadline||f.recur_deadline==="None")?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:14}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next: "+fmt(addInt(f.due,f.recur)))):null,
       ce("label",{style:lb},"Assign to"),
       assignSection,
-      ce("label",{style:lb},"Notes"),
-      ce("textarea",{style:Object.assign({},inp,{marginBottom:14,minHeight:52,resize:"vertical"}),value:f.notes,onChange:function(e){set("notes",e.target.value);},placeholder:"Optional notes..."}),
+      ce("div",{style:{marginBottom:14}},
+        ce("label",{style:lb},"Shared Notes"),
+        ce("textarea",{style:Object.assign({},inp,{minHeight:52,resize:"vertical"}),value:f.notes,onChange:function(e){set("notes",e.target.value);},placeholder:"Notes visible to all users on this task..."})
+      ),
+      ce("div",{style:{marginBottom:14}},
+        ce("div",{style:{display:"flex",alignItems:"center",gap:5,marginBottom:4}},
+          ce("label",{style:Object.assign({},lb,{margin:0})},"Private Notes"),
+          ce("span",{style:{fontSize:10,color:"#6B21A8",background:"#FEF0FF",borderRadius:4,padding:"1px 6px",fontWeight:500}},"Only you see this")
+        ),
+        ce("textarea",{style:Object.assign({},inp,{minHeight:44,resize:"vertical",borderColor:"#D8B4FE"}),value:f.private_notes||"",onChange:function(e){set("private_notes",e.target.value);},placeholder:"Personal notes only visible to you..."})
+      ),
+      f.to!==cu?ce("div",{style:{marginBottom:14}},
+        ce("div",{style:{display:"flex",alignItems:"center",gap:5,marginBottom:4}},
+          ce("label",{style:Object.assign({},lb,{margin:0})},"Note for "+f.to),
+          ce("span",{style:{fontSize:10,color:"#0F6E9A",background:"#E0F2FB",borderRadius:4,padding:"1px 6px",fontWeight:500}},"Pops up for them")
+        ),
+        ce("textarea",{style:Object.assign({},inp,{minHeight:44,resize:"vertical",borderColor:"#7DD3F0"}),value:f.notify_notes||"",onChange:function(e){set("notify_notes",e.target.value);},placeholder:("Message that will appear when "+f.to+" opens this task...")})
+      ):null,
       ce("label",{style:lb},"Subtasks"),
       ce("div",{style:{marginBottom:8}},f.subtasks.map(function(s,i){
         return ce("div",{key:i,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 6px",borderRadius:7,border:"0.5px solid #E8E8E6",background:"#FAFAF9",marginBottom:4}},
@@ -790,9 +865,9 @@ function CalendarView(props){
       var isOver=new Date(ds)<now&&!isToday;
       var todayD=new Date().toISOString().slice(0,10);
       var pills=dayTasks.slice(0,3).map(function(t,ti){
-        var pc=PRI[t.pri]||{bg:"#F2F2F0",tx:"#555"};
+        var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555"};
         var isPastDue=t.due&&t.due<todayD&&t.status!=="Done";
-        return ce("div",{key:ti,onClick:function(e){e.stopPropagation();if(!t._virtual)onTaskClick(t);},style:{fontSize:10,padding:"2px 5px",borderRadius:4,background:isPastDue?"#DC2626":pc.bg,color:isPastDue?"#fff":pc.tx,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,cursor:t._virtual?"default":"pointer",border:isPastDue?"none":"none"}},
+        return ce("div",{key:ti,onClick:function(e){e.stopPropagation();if(!t._virtual)onTaskClick(t);},style:{fontSize:10,padding:"2px 5px",borderRadius:4,background:isPastDue?"#DC2626":cc.bg,color:isPastDue?"#fff":cc.tx,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,cursor:t._virtual?"default":"pointer"}},
           (isPastDue?"⚠ ":"")+ctxLbl(t.ctx)+": "+t.title
         );
       });
@@ -839,9 +914,15 @@ function RecurringView(props){
 
   var rows=recurTasks.map(function(t){
     var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
+    var pc=PC[t.ctx.split(":")[0]]||{ac:"#888",bg:"#F5F5F5",tx:"#333"};
+    var parentLabel=ctxParent(t.ctx);
     var lbl=recurLabel(t.recur);
     var next=t.due?addInt(t.due,t.recur):null;
     return ce("div",{key:t.id,style:{background:WH,border:"0.5px solid #E2E2E0",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
+      // Parent category circle bubble
+      ce("div",{style:{width:36,height:36,borderRadius:"50%",background:pc.bg,border:"1.5px solid "+pc.ac+"55",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
+        ce("span",{style:{fontSize:9,fontWeight:700,color:pc.tx,textAlign:"center",lineHeight:1.1}},parentLabel.slice(0,4).toUpperCase())
+      ),
       ce("div",{style:{flex:1,minWidth:180}},
         ce("div",{style:{fontSize:13,fontWeight:600,color:BLK,marginBottom:4}},t.title),
         ce("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
@@ -960,7 +1041,7 @@ function QuarterlyView(props){
       :qTasks.map(function(t){
         var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
         return ce("div",{key:t.id,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"0.5px solid #E8E8E6",background:t._expanded?"#FAFAF9":WH,marginBottom:4}},
-          ce("div",{style:{width:6,height:6,borderRadius:"50%",background:PRI[t.pri]?PRI[t.pri].dot:"#DDD",flexShrink:0}}),
+          ce("div",{style:{width:8,height:8,borderRadius:"50%",background:cc.bd,flexShrink:0}}),
           ce("div",{style:{flex:1,fontSize:12,fontWeight:500,color:t.status==="Done"?"#aaa":BLK,textDecoration:t.status==="Done"?"line-through":"none"}},t.title),
           ce("span",{style:{fontSize:10,padding:"1px 6px",borderRadius:4,background:cc.bg,color:cc.tx}},ctxLbl(t.ctx)),
           ce("span",{style:{fontSize:10,color:"#aaa"}},fmt(displayDate(t))),
@@ -1007,6 +1088,8 @@ function App(){
   var [sideOpen,setSideOpen]=useState(window.innerWidth>=700);
   var [deleteRecurT,setDeleteRecurT]=useState(null);
   var [filterPastDue,setFilterPastDue]=useState(false);
+  var [dateWindow,setDateWindow]=useState(null); // null|'today'|'week'|'month'|'quarter'
+  var [dateWindowBy,setDateWindowBy]=useState('due'); // 'due'|'created'
   var [proxyView,setProxyView]=useState(false); // Gin viewing as Jhonatan
 
   // load tasks from supabase
@@ -1052,7 +1135,28 @@ function App(){
     return true;
   });
   var todayStr2=new Date().toISOString().slice(0,10);
-  var baseFiltered=filterPastDue?base.filter(function(t){return t.due&&t.due.slice(0,10)<todayStr2&&t.status!=="Done"&&!t._virtual;}):base;
+  var baseFiltered2=filterPastDue?base.filter(function(t){return t.due&&t.due.slice(0,10)<todayStr2&&t.status!=="Done"&&!t._virtual;}):base;
+  var baseFiltered=dateWindow?baseFiltered2.filter(function(t){
+    var d=dateWindowBy==="created"?(t.created_at?t.created_at.slice(0,10):""):displayDate(t);
+    if(!d)return false;
+    var now2=new Date(); var td=todayStr2;
+    if(dateWindow==="today")return d===td;
+    if(dateWindow==="week"){
+      var wstart=new Date(now2);wstart.setDate(now2.getDate()-now2.getDay());
+      var wend=new Date(wstart);wend.setDate(wstart.getDate()+6);
+      return d>=wstart.toISOString().slice(0,10)&&d<=wend.toISOString().slice(0,10);
+    }
+    if(dateWindow==="month"){
+      return d.slice(0,7)===td.slice(0,7);
+    }
+    if(dateWindow==="quarter"){
+      var qm=Math.floor(now2.getMonth()/3)*3;
+      var qs=now2.getFullYear()+"-"+padZ(qm+1)+"-01";
+      var qe=new Date(now2.getFullYear(),qm+3,0).toISOString().slice(0,10);
+      return d>=qs&&d<=qe;
+    }
+    return true;
+  }):baseFiltered2;
   var sorted=srt?baseFiltered.slice().sort(function(a,b){
     if(srt==="pa")return PO[a.pri]-PO[b.pri];
     if(srt==="pd")return PO[b.pri]-PO[a.pri];
@@ -1142,13 +1246,25 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},base.filter(function(t){return t.status!=="Done";}).length+" open")
     ),
-    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}},
+    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}},
       ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".05em"}},"Sort"),
       sortBtns,
       ce("button",{onClick:function(){setFilterPastDue(function(v){return !v;});},style:{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:filterPastDue?700:400,border:filterPastDue?"1.5px solid #DC2626":"0.5px solid #DDD",background:filterPastDue?"#FEF2F2":"#F7F7F6",color:filterPastDue?"#DC2626":"#666",cursor:"pointer"}},
         svg(["M12 9v4","M12 17h.01","M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"],11,11,filterPastDue?"#DC2626":"#999")," Past Due"
       ),
       srt?ce("button",{onClick:function(){setSrt(null);},style:{fontSize:11,color:"#999",background:"none",border:"none",cursor:"pointer",padding:"2px 4px"}},"x clear"):null
+    ),
+    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}},
+      ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".05em"}},"Show"),
+      ["today","week","month","quarter"].map(function(w){
+        var labels={today:"Today",week:"This Week",month:"This Month",quarter:"This Quarter"};
+        var a=dateWindow===w;
+        return ce("button",{key:w,onClick:function(){setDateWindow(a?null:w);},style:{padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:a?600:400,border:a?"1.5px solid "+MD:"0.5px solid #DDD",background:a?"#E8FBF1":"#F7F7F6",color:a?MD:"#666",cursor:"pointer"}},labels[w]);
+      }),
+      dateWindow?ce("div",{style:{display:"flex",alignItems:"center",gap:4,marginLeft:4,background:"#F7F7F6",borderRadius:20,padding:"2px 4px",border:"0.5px solid #DDD"}},
+        ce("span",{style:{fontSize:10,color:"#888"}},dateWindowBy==="due"?"by due date":"by created date"),
+        ce("button",{onClick:function(){setDateWindowBy(function(v){return v==="due"?"created":"due";});},style:{fontSize:10,padding:"2px 7px",borderRadius:20,border:"0.5px solid #DDD",background:WH,cursor:"pointer",color:"#555"}},dateWindowBy==="due"?"→ created":"→ due date")
+      ):null
     ),
     loading?ce("div",{style:{textAlign:"center",padding:40,color:"#aaa",fontSize:13}},"Loading tasks..."):ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10}},colEls)
   );
