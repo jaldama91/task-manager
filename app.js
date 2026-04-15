@@ -480,6 +480,13 @@ function CardInner(props){
     textTransform:"uppercase",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3
   }},Ico("warn",10,"#fff")," PAST DUE"):null;
   var duePill=task.due?Tag(over?"#FEE2E2":"#F2F2F0",over?"#991B1B":"#666",over?"#FCA5A5":"#DDD",[Ico(over?"warn":"cal",11,over?"#991B1B":"#999"),ce("span",{key:"d",style:{marginLeft:2}},fmt(task.due))]):null;
+  // Period label: for recurring show "for MM/DD/YY", for all show created date if no due date
+  var periodLbl=null;
+  if(rec&&task.due){
+    periodLbl=Tag("#F0F9FF","#0369A1","#BAE6FD",[ce("span",{key:"p",style:{fontSize:10,fontWeight:600}},"for "+fmt(task.due))]);
+  } else if(!task.due&&task.created_at){
+    periodLbl=Tag("#F8FAFC","#64748B","#E2E8F0",[Ico("cal",10,"#94A3B8"),ce("span",{key:"c",style:{marginLeft:2,fontSize:10}},fmt(task.created_at.slice(0,10)))]);
+  }
   var virtPill=task._virtual?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",10,RC.tx),ce("span",{key:"v",style:{marginLeft:2}},"upcoming")]):null;
   var recPill=rec?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",11,RC.tx),ce("span",{key:"r",style:{marginLeft:2}},recLbl)]):null;
   var shPill=isShared?Tag("#FEF0FF","#6B21A8","#D8B4FE",[Ico("users",11,"#6B21A8"),ce("span",{key:"s",style:{marginLeft:2}},"Shared")]):null;
@@ -529,7 +536,7 @@ function CardInner(props){
         )
       ),
       ce("div",{style:{display:"flex",flexWrap:"wrap",gap:5,marginTop:8,alignItems:"center"}},
-        pastDueBadge,Tag(cc.bg,cc.tx,cc.bd,lbl),duePill,recPill,virtPill,shPill,subPill,
+        pastDueBadge,Tag(cc.bg,cc.tx,cc.bd,lbl),duePill,periodLbl,recPill,virtPill,shPill,subPill,
         ce("div",{key:"av",style:{marginLeft:"auto"}},avStack)
       )
     ),
@@ -1386,11 +1393,8 @@ function App(){
     setDeleteRecurT(null);
   }
   function clearDone(){
-    // Get all Done tasks visible to this user
     var doneTasks=sorted.filter(function(t){return t.status==="Done"&&!t._virtual;});
     if(doneTasks.length===0)return;
-    // For recurring tasks in Done: just delete that instance (recur is already "None" since
-    // spawnNext strips recur, or they were marked done-only). For non-recurring: delete fully.
     var ids=doneTasks.map(function(t){return t.id;});
     sb.from("tasks").delete().in("id",ids).then(function(){loadTasks();});
   }
@@ -1428,7 +1432,13 @@ function App(){
       ce("span",{style:{fontSize:13,fontWeight:600,color:cm.tx,flex:1}},col),
       ce("span",{style:{fontSize:12,color:cm.tx,background:"rgba(255,255,255,.75)",borderRadius:20,padding:"1px 8px",border:"0.5px solid "+cm.ac+"44"}},items.length),
       col==="Done"&&items.length>0?ce("button",{
-        onClick:function(){if(window.confirm("Clear all "+items.length+" completed task"+(items.length===1?"":"s")+"? This cannot be undone."))clearDone();},
+        onClick:function(){
+          var recurCount=items.filter(function(t){return t.recur&&t.recur!=="None";}).length;
+          var msg="Clear all "+items.length+" completed task"+(items.length===1?"":"s")+"?";
+          if(recurCount>0)msg+="\n\n"+recurCount+" are recurring — their next occurrence is already in To Do. This only removes the completed instances.";
+          msg+="\n\nThis cannot be undone.";
+          if(window.confirm(msg))clearDone();
+        },
         style:{marginLeft:4,padding:"2px 9px",borderRadius:6,border:"1px solid #FCA5A5",background:"none",color:"#DC2626",fontSize:11,fontWeight:500,cursor:"pointer",whiteSpace:"nowrap"}
       },"Clear all"):null
     );
