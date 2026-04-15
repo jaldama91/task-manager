@@ -634,7 +634,16 @@ function RecurringView(props){
   var tasks=props.tasks,cu=props.cu;
   var recurTasks=tasks.filter(function(t){return t.recur&&t.recur!=="None";});
   var [editT,setEditT]=useState(null);
-  var [modal,setModal]=useState(false);
+
+  function handleSave(form){
+    if(!editT)return;
+    if(form._delete){
+      sb.from("tasks").delete().eq("id",editT.id).then(function(){props.onReload();setEditT(null);});
+    } else {
+      var data=taskToDb(form,cu);
+      sb.from("tasks").update(data).eq("id",editT.id).then(function(){props.onReload();setEditT(null);});
+    }
+  }
 
   if(recurTasks.length===0){
     return ce("div",{style:{background:WH,borderRadius:12,padding:32,textAlign:"center",color:"#aaa",border:"0.5px solid #E2E2E0"}},"No recurring tasks found.");
@@ -658,10 +667,8 @@ function RecurringView(props){
       ce("div",{style:{fontSize:12,color:"#888",minWidth:100}},
         next?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Next occurrence"),ce("div",{style:{fontWeight:500,color:MD}},fmt(next))):null
       ),
-      ce("div",null,
-        Av(t.to,20)
-      ),
-      ce("button",{onClick:function(){setEditT(t);setModal(true);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#555",display:"flex",alignItems:"center",gap:4}},Ico("edit",12)," Edit")
+      ce("div",null,Av(t.to,20)),
+      ce("button",{onClick:function(){setEditT(t);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#555",display:"flex",alignItems:"center",gap:4}},Ico("edit",12)," Edit")
     );
   });
 
@@ -672,7 +679,7 @@ function RecurringView(props){
       ce("span",{style:{fontSize:12,color:"#888"}},recurTasks.length+" recurring")
     ),
     ce("div",{style:{background:WH,borderRadius:12,padding:"14px 16px",border:"0.5px solid #E2E2E0"}},rows),
-    modal&&editT?ce(TaskModal,{task:editT,cu:cu,onSave:props.onSave,onClose:function(){setModal(false);setEditT(null);}}):null
+    editT?ce(TaskModal,{task:editT,cu:cu,onSave:handleSave,onClose:function(){setEditT(null);}}):null
   );
 }
 
@@ -985,7 +992,7 @@ function App(){
       ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
         view==="calendar"?calView:
         view==="quarterly"?ce(QuarterlyView,{tasks:allVis,cu:cu}):
-        view==="recurring"?ce(RecurringView,{tasks:allVis,cu:cu,onSave:saveTask}):
+        view==="recurring"?ce(RecurringView,{tasks:allVis,cu:cu,onReload:loadTasks}):
         boardView
       )
     ),
