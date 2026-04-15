@@ -101,6 +101,59 @@ function addInt(d,r){
   return null;
 }
 
+
+// ── Generate virtual occurrences of recurring tasks ────────────────────────
+// Returns array of virtual task objects with _virtual:true and _baseId set
+// Generates occurrences from startDate to endDate (strings YYYY-MM-DD)
+function generateOccurrences(tasks, startStr, endStr){
+  var result = [];
+  var start = new Date(startStr+"T00:00:00");
+  var end   = new Date(endStr+"T23:59:59");
+  tasks.forEach(function(t){
+    if(!t.recur || t.recur==="None" || !t.due) return;
+    // Walk forward from due date generating occurrences within window
+    var cur = t.due;
+    var safety = 0;
+    // First, walk backward if due date is after start (to catch patterns that started before window)
+    // Actually just walk forward from due date
+    // If due date is after end, skip
+    if(new Date(cur+"T00:00:00") > end) return;
+    while(safety < 200){
+      safety++;
+      var next = addInt(cur, t.recur);
+      if(!next) break;
+      var nd = new Date(next+"T00:00:00");
+      if(nd > end) break;
+      if(nd >= start){
+        // Check this date isn't already a real task (same recur_id + due)
+        var alreadyExists = tasks.some(function(r){
+          return r.recur_id === t.id && r.due === next;
+        });
+        if(!alreadyExists){
+          result.push(Object.assign({}, t, {
+            id: t.id+"__"+next,
+            due: next,
+            status: "To Do",
+            _virtual: true,
+            _baseId: t.id,
+            subtasks: t.subtasks ? t.subtasks.map(function(s){return Object.assign({},s,{done:false});}) : []
+          }));
+        }
+      }
+      cur = next;
+    }
+  });
+  return result;
+}
+
+// Get date range for current + next 3 months for board view
+function getBoardWindow(){
+  var now = new Date();
+  var start = now.toISOString().slice(0,10);
+  var end = new Date(now.getFullYear(), now.getMonth()+3, 0).toISOString().slice(0,10);
+  return {start:start, end:end};
+}
+
 // ── RecurPicker component ──────────────────────────────────────────────────
 function RecurPicker(props){
   var val=props.value||"None",onChange=props.onChange;
@@ -348,11 +401,12 @@ function CardInner(props){
   var rec=!!(task.recur&&task.recur!=="None");
   var recLbl=recurLabel(task.recur);
   var done=task.subtasks.filter(function(s){return s.done;}).length;
-  var can=!!(USERS[cu]&&USERS[cu].ctxs.indexOf(task.ctx)>=0);
+  var can=!!(USERS[cu]&&USERS[cu].ctxs.indexOf(task.ctx)>=0&&!task._virtual);
   var isShared=!!(task.shared&&isPers(task.ctx));
   var moveCols=COLS.filter(function(c){return c!==task.status;});
 
   var duePill=task.due?Tag(over?"#FFE4E4":"#F2F2F0",over?"#991B1B":"#666",over?"#FECACA":"#DDD",[Ico(over?"warn":"cal",11,over?"#991B1B":"#999"),ce("span",{key:"d",style:{marginLeft:2}},fmt(task.due))]):null;
+  var virtPill=task._virtual?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",10,RC.tx),ce("span",{key:"v",style:{marginLeft:2}},"upcoming")]):null;
   var recPill=rec?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",11,RC.tx),ce("span",{key:"r",style:{marginLeft:2}},recLbl)]):null;
   var shPill=isShared?Tag("#FEF0FF","#6B21A8","#D8B4FE",[Ico("users",11,"#6B21A8"),ce("span",{key:"s",style:{marginLeft:2}},"Shared")]):null;
   var subPill=task.subtasks.length>0?Tag("#F2F2F0","#666",null,done+"/"+task.subtasks.length+" done"):null;
@@ -395,7 +449,7 @@ function CardInner(props){
         )
       ),
       ce("div",{style:{display:"flex",flexWrap:"wrap",gap:5,marginTop:8,alignItems:"center"}},
-        Tag(cc.bg,cc.tx,cc.bd,lbl),duePill,recPill,shPill,subPill,
+        Tag(cc.bg,cc.tx,cc.bd,lbl),duePill,recPill,virtPill,shPill,subPill,
         ce("div",{key:"av",style:{marginLeft:"auto"}},avStack)
       )
     ),
@@ -493,6 +547,7 @@ function TaskModal(props){
         ce("button",{onClick:addSub,style:{padding:"8px 10px",borderRadius:7,border:"0.5px solid "+MB,background:"#E8FBF1",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",gap:4,color:MD}},Ico("plus",13,MD)," Add")
       ),
       ce("div",{style:{display:"flex",gap:8,justifyContent:"flex-end",borderTop:"0.5px solid #EEE",paddingTop:16}},
+        task?ce("button",{onClick:function(){props.onSave({_delete:true});},style:{marginRight:"auto",padding:"8px 14px",borderRadius:8,border:"1px solid #FECACA",background:"none",color:"#DC2626",fontSize:13,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:5}},Ico("trash",13,"#DC2626")," Delete"):null,
         ce("button",{onClick:props.onClose,style:{padding:"8px 16px",borderRadius:8,border:"0.5px solid #DDD",background:"none",cursor:"pointer",fontSize:14,color:"#666"}},"Cancel"),
         ce("button",{onClick:function(){if(f.title.trim())props.onSave(f);},style:{display:"flex",alignItems:"center",gap:6,padding:"8px 18px",borderRadius:8,border:"none",background:MB,cursor:"pointer",fontSize:14,fontWeight:600,color:BLK}},Ico("check",14,BLK)," Save")
       )
@@ -500,21 +555,76 @@ function TaskModal(props){
   );
 }
 
-// ── RecurModal ─────────────────────────────────────────────────────────────
+// ── RecurModal (complete confirmation) ─────────────────────────────────────
 function RecurModal(props){
   var task=props.task;
+  var next=task.due?addInt(task.due,task.recur):null;
   return ce("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200},onClick:props.onClose},
     ce("div",{style:{background:WH,borderRadius:14,padding:"22px 24px",width:"min(90vw,380px)"},onClick:function(e){e.stopPropagation();}},
       ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
         ce("div",{style:{width:36,height:36,borderRadius:9,background:RC.bg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},Ico("recur",18,RC.tx)),
         ce("h2",{style:{margin:0,fontSize:16,fontWeight:500,color:BLK}},"Recurring task completed")
       ),
-      ce("p",{style:{fontSize:13,color:"#666",margin:"0 0 8px"}},ce("span",{style:{fontWeight:500,color:BLK}},task.title)," repeats ",recurLabel(task.recur)||task.recur,"."  ),
-      task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:16}},Ico("cal",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next due: "+fmt(addInt(task.due,task.recur)))):null,
+      ce("p",{style:{fontSize:13,color:"#666",margin:"0 0 8px"}},ce("span",{style:{fontWeight:500,color:BLK}},task.title)," repeats ",recurLabel(task.recur)||task.recur,"."),
+      next?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:16}},Ico("cal",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next due: "+fmt(next))):null,
       ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
-        ce("button",{onClick:props.onSpawn,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"none",background:MB,cursor:"pointer",fontSize:14,fontWeight:600,color:BLK,textAlign:"left"}},Ico("recur",15,BLK)," Mark done and create next"),
-        ce("button",{onClick:props.onArchive,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"0.5px solid #DDD",background:"#F2F2F0",cursor:"pointer",fontSize:14,color:BLK,textAlign:"left"}},Ico("check",15)," Mark done only"),
-        ce("button",{onClick:props.onClose,style:{padding:"10px 14px",borderRadius:9,border:"none",background:"none",cursor:"pointer",fontSize:14,color:"#999",textAlign:"left"}},"Cancel")
+        ce("button",{onClick:props.onSpawn,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"none",background:MB,cursor:"pointer",fontSize:14,fontWeight:600,color:BLK}},Ico("recur",15,BLK)," Mark done & schedule next"),
+        ce("button",{onClick:props.onArchive,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"0.5px solid #DDD",background:"#F2F2F0",cursor:"pointer",fontSize:14,color:BLK}},Ico("check",15)," Mark done only (stop repeating)"),
+        ce("button",{onClick:props.onClose,style:{padding:"10px 14px",borderRadius:9,border:"none",background:"none",cursor:"pointer",fontSize:14,color:"#999"}},"Cancel")
+      )
+    )
+  );
+}
+
+// ── DeleteRecurModal ────────────────────────────────────────────────────────
+function DeleteRecurModal(props){
+  var task=props.task;
+  var [sel,setSel]=useState("one");
+  var [confirm,setConfirm]=useState(false);
+
+  function doDelete(){
+    if(sel==="one"){
+      props.onDeleteOne();
+    } else {
+      if(!confirm){setConfirm(true);return;}
+      props.onDeleteAll();
+    }
+  }
+
+  return ce("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300},onClick:props.onClose},
+    ce("div",{style:{background:WH,borderRadius:14,padding:"24px",width:"min(92vw,420px)"},onClick:function(e){e.stopPropagation();}},
+      ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:16}},
+        ce("div",{style:{width:36,height:36,borderRadius:9,background:"#FEE2E2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},Ico("trash",18,"#DC2626")),
+        ce("h2",{style:{margin:0,fontSize:16,fontWeight:600,color:BLK}},"Delete recurring task")
+      ),
+      ce("p",{style:{fontSize:13,color:"#555",marginBottom:16,lineHeight:1.5}},
+        ce("strong",null,task.title)," is a recurring task (",recurLabel(task.recur),"). What would you like to delete?"
+      ),
+      // Options
+      ce("div",{style:{display:"flex",flexDirection:"column",gap:8,marginBottom:20}},
+        ce("label",{style:{display:"flex",alignItems:"flex-start",gap:10,padding:"12px 14px",borderRadius:10,border:sel==="one"?"2px solid "+MB:"1px solid #DDD",background:sel==="one"?"#E8FBF1":WH,cursor:"pointer"}},
+          ce("input",{type:"radio",name:"del_scope",value:"one",checked:sel==="one",onChange:function(){setSel("one");setConfirm(false);},style:{marginTop:2,accentColor:MD}}),
+          ce("div",null,
+            ce("div",{style:{fontSize:13,fontWeight:600,color:BLK}},"Delete this instance only"),
+            ce("div",{style:{fontSize:12,color:"#888",marginTop:2}},"Future occurrences will continue as scheduled")
+          )
+        ),
+        ce("label",{style:{display:"flex",alignItems:"flex-start",gap:10,padding:"12px 14px",borderRadius:10,border:sel==="all"?"2px solid #EF4444":"1px solid #DDD",background:sel==="all"?"#FEF2F2":WH,cursor:"pointer"}},
+          ce("input",{type:"radio",name:"del_scope",value:"all",checked:sel==="all",onChange:function(){setSel("all");setConfirm(false);},style:{marginTop:2,accentColor:"#EF4444"}}),
+          ce("div",null,
+            ce("div",{style:{fontSize:13,fontWeight:600,color:"#DC2626"}},"Delete all repeating tasks"),
+            ce("div",{style:{fontSize:12,color:"#888",marginTop:2}},"Removes this and all future occurrences permanently")
+          )
+        )
+      ),
+      confirm&&sel==="all"?ce("div",{style:{padding:"10px 14px",borderRadius:8,background:"#FEF2F2",border:"1px solid #FECACA",marginBottom:16,fontSize:13,color:"#DC2626",fontWeight:500}},
+        "⚠️ Are you sure? This cannot be undone."
+      ):null,
+      ce("div",{style:{display:"flex",gap:10,justifyContent:"flex-end"}},
+        ce("button",{onClick:props.onClose,style:{padding:"9px 16px",borderRadius:8,border:"1px solid #DDD",background:WH,color:"#666",fontSize:14,cursor:"pointer"}},"Cancel"),
+        ce("button",{onClick:doDelete,style:{padding:"9px 18px",borderRadius:8,border:"none",background:sel==="all"?"#DC2626":MB,color:sel==="all"?WH:BLK,fontSize:14,fontWeight:600,cursor:"pointer"}},
+          confirm&&sel==="all"?"Yes, delete all":sel==="all"?"Delete all":"Delete this one"
+        )
       )
     )
   );
@@ -589,7 +699,7 @@ function CalendarView(props){
   var todayStr=now.getFullYear()+"-"+padZ(now.getMonth()+1)+"-"+padZ(now.getDate());
   var firstDay=new Date(yr,mon,1).getDay();
   var daysInMonth=new Date(yr,mon+1,0).getDate();
-  var myTasks=tasks.filter(function(t){return t.due&&t.status!=="Done"&&(t.to===cu||(t.shared&&isPers(t.ctx)));});
+  var myTasks=tasks.filter(function(t){return t.due&&t.status!=="Done"&&(t.to===cu||t._virtual||(t.shared&&isPers(t.ctx)));});
   var taskCount=myTasks.filter(function(t){return t.due&&t.due.slice(0,7)===monStr;}).length;
   function prevMon(){if(mon===0){setMon(11);setYr(yr-1);}else{setMon(mon-1);}}
   function nextMon(){if(mon===11){setMon(0);setYr(yr+1);}else{setMon(mon+1);}}
@@ -632,7 +742,7 @@ function CalendarView(props){
 // ── RecurringView ──────────────────────────────────────────────────────────
 function RecurringView(props){
   var tasks=props.tasks,cu=props.cu;
-  var recurTasks=tasks.filter(function(t){return t.recur&&t.recur!=="None";});
+  var recurTasks=tasks.filter(function(t){return t.recur&&t.recur!=="None"&&!t._virtual;});
   var [editT,setEditT]=useState(null);
 
   function handleSave(form){
@@ -809,6 +919,7 @@ function App(){
   var [editT,setEditT]=useState(null);
   var [recurT,setRecurT]=useState(null);
   var [sideOpen,setSideOpen]=useState(window.innerWidth>=700);
+  var [deleteRecurT,setDeleteRecurT]=useState(null);
 
   // load tasks from supabase
   var loadTasks=useCallback(function(){
@@ -831,11 +942,15 @@ function App(){
 
   var uctxs=USERS[cu].ctxs;
   var actCtxs=resolveCtxs(sel,uctxs);
-  var allVis=tasks.filter(function(t){
+  var realVis=tasks.filter(function(t){
     if(uctxs.indexOf(t.ctx)>=0)return true;
     if(t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah"))return true;
     return false;
   });
+  // Add virtual recurring occurrences (next 90 days) for board/monthly/quarterly
+  var win=getBoardWindow();
+  var virtualOccs=generateOccurrences(realVis.filter(function(t){return t.status!=="Done";}),win.start,win.end);
+  var allVis=realVis.concat(virtualOccs);
   var base=tasks.filter(function(t){
     var inCtx=actCtxs.indexOf(t.ctx)>=0;
     var isPersonalSel=sel==="All"||sel==="P";
@@ -872,9 +987,25 @@ function App(){
     sb.from("tasks").update({status:st}).eq("id",id).then(function(){loadTasks();});
   }
   function delTask(id){
-    sb.from("tasks").delete().eq("id",id).then(function(){loadTasks();});
+    // Find the task to check if it's recurring
+    var t=allVis.find(function(x){return x.id===id;});
+    if(t&&t.recur&&t.recur!=="None"){
+      setDeleteRecurT(t);
+    } else {
+      sb.from("tasks").delete().eq("id",id).then(function(){loadTasks();});
+    }
   }
-  function doComplete(task){if(task.recur!=="None"){setRecurT(task);}else{moveTask(task.id,"Done");}}
+  function delOneInstance(task){
+    // Delete just this instance — mark it done with no recur so it disappears
+    sb.from("tasks").update({status:"Done",recur:"None"}).eq("id",task.id).then(function(){loadTasks();});
+    setDeleteRecurT(null);
+  }
+  function delAllRecurring(task){
+    // Delete this task and all future virtual ones (they aren't in DB yet, just delete base)
+    sb.from("tasks").delete().eq("id",task.id).then(function(){loadTasks();});
+    setDeleteRecurT(null);
+  }
+  function doComplete(task){if(task.recur&&task.recur!=="None"){setRecurT(task);}else{moveTask(task.id,"Done");}}
   function spawnNext(){
     var t=recurT,nd=addInt(t.due,t.recur);
     sb.from("tasks").update({status:"Done"}).eq("id",t.id).then(function(){
@@ -901,7 +1032,7 @@ function App(){
   var colEls=COLS.map(function(col){
     var cm=CC[col];
     var items=sorted.filter(function(t){return t.status===col;});
-    var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:cu,onMove:moveTask,onEdit:function(tk){setEditT(tk);setModal(true);},onDel:delTask,onComplete:doComplete});});
+    var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:cu,onMove:t._virtual?function(){}:moveTask,onEdit:function(tk){if(!tk._virtual){setEditT(tk);setModal(true);}},onDel:t._virtual?function(){}:delTask,onComplete:t._virtual?function(){}:doComplete});});
     return ce("div",{key:col},
       ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"7px 10px",background:cm.bg,borderRadius:8,border:"0.5px solid "+cm.ac+"33"}},
         ce("span",{style:{width:8,height:8,borderRadius:"50%",background:cm.ac,flexShrink:0}}),
@@ -965,6 +1096,8 @@ function App(){
   if(modal){modalEl=ce(TaskModal,{task:editT,cu:cu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);}});}
   var recurEl=null;
   if(recurT){recurEl=ce(RecurModal,{task:recurT,onSpawn:spawnNext,onArchive:function(){moveTask(recurT.id,"Done");setRecurT(null);},onClose:function(){setRecurT(null);}});}
+  var deleteRecurEl=null;
+  if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteOne:function(){delOneInstance(deleteRecurT);},onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
 
   return ce("div",{style:{background:"#F2F2F0",minHeight:"100vh",padding:14,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}},
     topBar,
@@ -996,7 +1129,7 @@ function App(){
         boardView
       )
     ),
-    modalEl,recurEl
+    modalEl,recurEl,deleteRecurEl
   );
 }
 
