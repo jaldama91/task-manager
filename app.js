@@ -1465,7 +1465,8 @@ function App(){
     if(t.shared&&isPers(t.ctx)&&(effectiveCu==="Jhonatan"||effectiveCu==="Sarah")&&cu!=="Gin")return true;
     return false;
   });
-  var todayStr=new Date().toISOString().slice(0,10);
+  // Tasks for calendar/quarterly: realVis filtered by af (assigned-to)
+  var visFiltered=af==="All"?realVis:realVis.filter(function(t){return t.to===af||t.shared;});
   // allVis = all tasks visible to this user (no category filter), used for counts
   var allVis=realVis;
   var base=tasks.filter(function(t){
@@ -1694,7 +1695,7 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},"Your tasks by due date")
     ),
-    ce(CalendarView,{cu:cu,tasks:realVis.filter(function(t){return t.status!=="Done";}).concat(generateOccurrences(realVis.filter(function(t){return t.recur&&t.recur!=="None"&&t.status!=="Done";}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
+    ce(CalendarView,{cu:cu,tasks:visFiltered.filter(function(t){return t.status!=="Done";}).concat(generateOccurrences(visFiltered.filter(function(t){return t.recur&&t.recur!=="None"&&t.status!=="Done";}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
   );
 
   var isMobile=window.innerWidth<700;
@@ -1798,7 +1799,7 @@ function App(){
       // Main content
       ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
         view==="calendar"?calView:
-        view==="quarterly"?ce(QuarterlyView,{tasks:realVis,cu:cu,onTaskClick:function(t){setEditT(t);setModal(true);}}):
+        view==="quarterly"?ce(QuarterlyView,{tasks:visFiltered,cu:cu,onTaskClick:function(t){setEditT(t);setModal(true);}}):
         view==="recurring"?ce(RecurringView,{tasks:realVis,cu:cu,onReload:loadTasks,onDel:function(t){setDeleteRecurT(t);}}):
         view==="notes"?ce(NotesView,{cu:cu}):
         boardView
