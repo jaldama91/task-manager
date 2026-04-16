@@ -332,15 +332,15 @@ function ce(t,p){
   return React.createElement.apply(React,args);
 }
 function svg(paths,w,h,stroke,sw){
-  var sp={viewBox:"0 0 16 16",fill:"none",stroke:stroke||"currentColor",strokeWidth:sw||"1.5",strokeLinecap:"round",strokeLinejoin:"round",width:w||16,height:h||16};
+  var sp={viewBox:"0 0 16 16",fill:"none",stroke:stroke||"currentColor",strokeWidth:sw||"1.5",strokeLinecap:"round",strokeLinejoin:"round",width:w||16,height:h||16,display:"block"};
   return ce("svg",sp,paths.map(function(d,i){return ce("path",{key:i,d:d});}));
 }
 function svgR(rects,paths,w,h,stroke){
-  var sp={viewBox:"0 0 16 16",fill:"none",stroke:stroke||"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",width:w||16,height:h||16};
+  var sp={viewBox:"0 0 16 16",fill:"none",stroke:stroke||"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",width:w||16,height:h||16,display:"block"};
   return ce("svg",sp,rects.map(function(r,i){return ce("rect",{key:"r"+i,x:r.x,y:r.y,width:r.w,height:r.h,rx:r.rx});}).concat(paths.map(function(d,i){return ce("path",{key:"p"+i,d:d});})));
 }
 function svgC(circs,paths,w,h,stroke){
-  var sp={viewBox:"0 0 16 16",fill:"none",stroke:stroke||"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",width:w||16,height:h||16};
+  var sp={viewBox:"0 0 16 16",fill:"none",stroke:stroke||"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",width:w||16,height:h||16,display:"block"};
   return ce("svg",sp,circs.map(function(c,i){return ce("circle",{key:"c"+i,cx:c.cx,cy:c.cy,r:c.r});}).concat(paths.map(function(d,i){return ce("path",{key:"p"+i,d:d});})));
 }
 function Ico(name,sz,col){
