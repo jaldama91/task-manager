@@ -987,7 +987,7 @@ function CalendarView(props){
       var pills=dayTasks.slice(0,3).map(function(t,ti){
         var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555"};
         var isPastDue=t.due&&t.due<todayD&&t.status!=="Done";
-        return ce("div",{key:ti,onClick:function(e){e.stopPropagation();if(!t._virtual)onTaskClick(t);},style:{fontSize:10,padding:"2px 5px",borderRadius:4,background:isPastDue?"#DC2626":cc.bg,color:isPastDue?"#fff":cc.tx,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,cursor:t._virtual?"default":"pointer"}},
+        return ce("div",{key:ti,onClick:function(e){e.stopPropagation();if(t._virtual&&t._baseId){var base=props.tasks.find(function(x){return x.id===t._baseId;});if(base)onTaskClick(base);}else if(!t._virtual){onTaskClick(t);}},style:{fontSize:10,padding:"2px 5px",borderRadius:4,background:isPastDue?"#DC2626":cc.bg,color:isPastDue?"#fff":cc.tx,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,cursor:"pointer"}},
           (isPastDue?"⚠ ":"")+ctxLbl(t.ctx)+": "+t.title
         );
       });
@@ -1180,7 +1180,8 @@ function QuarterlyView(props){
       ?ce("div",{style:{padding:"10px 0",color:"#ccc",fontSize:12,textAlign:"center"}},"No tasks")
       :qTasks.map(function(t){
         var cc=CTC[t.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
-        return ce("div",{key:t.id,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"0.5px solid #E8E8E6",background:t._expanded?"#FAFAF9":WH,marginBottom:4}},
+        var baseTask=t._baseId?tasks.find(function(x){return x.id===t._baseId;}):t;
+        return ce("div",{key:t.id,onClick:function(){if(props.onTaskClick&&baseTask)props.onTaskClick(baseTask);},style:{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"0.5px solid #E8E8E6",background:t._expanded?"#FAFAF9":WH,marginBottom:4,cursor:"pointer"}},
           ce("div",{style:{width:8,height:8,borderRadius:"50%",background:cc.bd,flexShrink:0}}),
           ce("div",{style:{flex:1,fontSize:12,fontWeight:500,color:t.status==="Done"?"#aaa":BLK,textDecoration:t.status==="Done"?"line-through":"none"}},t.title),
           ce("span",{style:{fontSize:10,padding:"1px 6px",borderRadius:4,background:cc.bg,color:cc.tx}},ctxLbl(t.ctx)),
@@ -1756,7 +1757,7 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},"Your tasks by due date")
     ),
-    ce(CalendarView,{cu:cu,tasks:visFiltered.filter(function(t){return t.status!=="Done";}).concat(generateOccurrences(visFiltered.filter(function(t){return t.recur&&t.recur!=="None"&&t.status!=="Done";}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
+    ce(CalendarView,{cu:cu,tasks:visFiltered.filter(function(t){return t.status!=="Done"&&(!t.recur||t.recur==="None");}).concat(generateOccurrences(visFiltered.filter(function(t){return t.recur&&t.recur!=="None"&&t.status!=="Done";}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
   );
 
   var isMobile=window.innerWidth<700;
