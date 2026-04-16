@@ -332,7 +332,7 @@ function getNextOccurrence(recur_start, recur, fromDate){
 // Is a recurring task active today? Returns {show, pastDue, repeatDate, deadline}
 function recurStatus(t, today){
   if(!t.recur||t.recur==="None") return {show:false};
-  var anchor=t.recur_start||t.due||t.created_at&&t.created_at.slice(0,10);
+  var anchor=t.recur_start||t.due||(t.created_at?t.created_at.slice(0,10):"");
   if(!anchor) return {show:false};
   // Find the current repeat date (next occurrence on or after anchor)
   var repeatDate=getNextOccurrence(anchor, t.recur, anchor);
@@ -502,7 +502,7 @@ function CardInner(props){
   var rs=rec?recurStatus(task,today):{show:false,pastDue:false};
   var over=rec?rs.pastDue:!!(task.due&&task.due<today&&task.status!=="Done");
   var done=task.subtasks.filter(function(s){return s.done;}).length;
-  var can=!!(USERS[cu]&&(USERS[cu].ctxs.indexOf(task.ctx)>=0||(task.recur&&task.recur!=="None"))&&!task._virtual);
+  var can=!!(USERS[cu]&&USERS[cu].ctxs.indexOf(task.ctx)>=0&&!task._virtual);
   var isShared=!!(task.shared&&isPers(task.ctx));
   var moveCols=COLS.filter(function(c){return c!==task.status;});
 
@@ -534,7 +534,11 @@ function CardInner(props){
         ce("span",{style:{fontSize:13,color:s.done?"#aaa":BLK,textDecoration:s.done?"line-through":"none"}},s.text)
       );
     });
-    var moveBtns=can?moveCols.map(function(col){
+    var moveBtns=can?moveCols.filter(function(col){
+      // Recurring tasks can only go to Done (via doComplete), not In Progress
+      if(rec&&col==="In Progress") return false;
+      return true;
+    }).map(function(col){
       return ce("button",{key:col,onClick:function(){if(col==="Done"){props.onComplete(task);}else{props.onMove(task.id,col);}},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"5px 10px",borderRadius:7,border:"0.5px solid #2AD87088",background:"#E8FBF1",cursor:"pointer",color:MD}},
         Ico("move",12,MD)," > "+col
       );
@@ -1038,6 +1042,11 @@ function QuarterlyView(props){
       }
       // Expand recurring tasks
       if(t.recur&&t.recur!=="None"&&baseDate){
+        // Include baseDate itself if it falls in this year
+        if(baseDate.slice(0,4)===String(year)){
+          var bDue=t.recur_deadline&&t.recur_deadline!=="None"?addInt(baseDate,t.recur_deadline)||baseDate:baseDate;
+          expanded.push(Object.assign({},t,{id:t.id+"_"+baseDate,due:bDue,_startDate:baseDate,_expanded:false,_baseId:t.id}));
+        }
         var cur=baseDate;
         var safety=0;
         while(safety<60){
@@ -1223,6 +1232,7 @@ function NotesView(props){
   var tabNotes=tab==="private"?privateNotes:tab==="ctx"?ctxNotes:sharedNotes;
   var activeNote=notes.find(function(n){return n.id===activeId;});
 
+  var MUT="#6B7280";
   // Note list
   var noteList=ce("div",{style:{width:220,flexShrink:0,display:"flex",flexDirection:"column",gap:0,borderRight:"1px solid #E8E8E6",paddingRight:0}},
     // Tabs
@@ -1269,7 +1279,6 @@ function NotesView(props){
   );
 
   // Editor
-  var MUT="#6B7280";
   var editor=activeNote?ce("div",{style:{flex:1,display:"flex",flexDirection:"column",padding:"0 0 0 20px"}},
     // Note header
     ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},
@@ -1323,12 +1332,12 @@ function HelpModal(props){
     {title:"📊 Quarterly View",body:"Shows all four quarters of the year side by side. Navigate between years with the arrows. Recurring tasks are automatically expanded for the full year. Click any task row to edit it. Color dots match the task's category color."},
     {title:"🔁 Recurring View",body:"Lists only the base recurring tasks — one row per repeating task. Edit the repeat schedule, deadline offset, or any task details here. Changes apply to all future occurrences. Delete from here removes the entire recurring series."},
     {title:"📝 Notes",body:"A standalone scratchpad separate from tasks. Three tabs: Private (only you see it), Context (tied to a category like Nuve or Kesos), and Shared (a live scratchpad between you and one other user). Notes auto-save as you type."},
-    {title:"✅ Creating & Editing Tasks",body:"Tap '+ New task' or '+ Add task' at the bottom of any column. Fill in title, category, priority, due date, and who it's assigned to. You can add subtasks (reorderable by the arrows), notes, private notes, and a message for the assignee. For recurring tasks, set the repeat schedule and an optional deadline offset."},
-    {title:"🔄 Recurring Tasks",body:"When you complete a recurring task, choose 'Mark done & schedule next' to automatically create the next occurrence, or 'Mark done only' to stop the series. To delete: 'Delete this instance only' removes just that occurrence; 'Delete all repeating tasks' removes the series permanently (requires confirmation)."},
+    {title:"✅ Creating & Editing Tasks",body:"Tap '+ New task' to create a task. Fill in title, category, priority, and assignee. For one-time tasks, set a due date. For recurring tasks, choose a repeat schedule and a 'Repeat starts' date — the due date field is replaced by these. Optionally set a deadline offset (e.g. repeats Wednesday, deadline 2 days later = Friday). Add subtasks, notes, private notes, and a message for the assignee."},
+    {title:"🔄 Recurring Tasks",body:"Recurring tasks live permanently in the Recurring tab. On the board, they appear automatically when today is on or after their repeat date, and disappear once you mark them done. They reappear on the next cycle automatically — no manual scheduling needed. To delete a recurring task permanently, go to the Recurring tab and click Delete. This removes it for all users."},
     {title:"🗂 Categories & Filters",body:"Use the sidebar to filter by category or subcategory. The 'Assigned to' section filters tasks by who they belong to. All views respect the active sidebar filter. Click 'All tasks' to reset."},
     {title:"🏷 Past Due",body:"Overdue tasks show a red PAST DUE badge. Use the Past Due filter button in the sort bar to see only overdue tasks across all views."},
     {title:"👥 Users & Access",body:"Jhonatan has full access to all categories. Sarah sees Personal & Rentals categories plus her own Work section. Gin sees Nuve and Kesos Tacos. Gin can also switch to 'View as Jhonatan' mode to act on his behalf (except Personal tasks). Each user has a 4-digit PIN."},
-    {title:"🗑 Clear Done",body:"In the Board view, the Done column has a 'Clear all' button that permanently deletes all completed tasks. For recurring tasks, only the completed instance is removed — the next occurrence stays in To Do."},
+    {title:"🗑 Clear Done",body:"In the Board view, the Done column has a 'Clear all' button that permanently deletes all completed non-recurring tasks. Recurring tasks are never in the Done column — they disappear from the board when completed and reappear on their next cycle automatically."},
   ];
   var [openIdx,setOpenIdx]=useState(null);
   return ce("div",{onClick:props.onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px 16px",overflowY:"auto"}},
@@ -1476,18 +1485,23 @@ function App(){
     }
     return true;
   });
-  var todayStr2=todayStr;
   var baseFiltered2=filterPastDue?base.filter(function(t){
     if(t.recur&&t.recur!=="None"){
-      var rs=recurStatus(t,todayStr2);
+      var rs=recurStatus(t,todayStr);
       return rs.pastDue;
     }
-    return t.due&&t.due.slice(0,10)<todayStr2&&t.status!=="Done";
+    return t.due&&t.due.slice(0,10)<todayStr&&t.status!=="Done";
   }):base;
   var baseFiltered=dateWindow?baseFiltered2.filter(function(t){
-    var d=dateWindowBy==="created"?(t.created_at?t.created_at.slice(0,10):""):displayDate(t);
+    var d;
+    if(t.recur&&t.recur!=="None"){
+      var rsD=recurStatus(t,todayStr);
+      d=rsD.repeatDate||"";
+    } else {
+      d=dateWindowBy==="created"?(t.created_at?t.created_at.slice(0,10):""):displayDate(t);
+    }
     if(!d)return false;
-    var now2=new Date(); var td=todayStr2;
+    var now2=new Date(); var td=todayStr;
     if(dateWindow==="today")return d===td;
     if(dateWindow==="week"){
       var wstart=new Date(now2);wstart.setDate(now2.getDate()-now2.getDay());
@@ -1514,11 +1528,11 @@ function App(){
     return 0;
   }):baseSearched;
 
-  var notifyBadge=tasks.filter(function(t){return t.notify_notes&&t.to===cu&&t.status!=="Done"&&!seenNotify[t.id];}).length;
+  var notifyBadge=realVis.filter(function(t){return t.notify_notes&&t.to===cu&&!seenNotify[t.id];}).length;
   // open = non-recurring not-done + recurring active today
   var openCnt=base.filter(function(t){return t.status!=="Done";}).length;
-  var recCnt=base.filter(function(t){return t.recur&&t.recur!=="None";}).length;
-  var mineCnt=base.filter(function(t){return(t.to===effectiveCu||t.shared)&&t.status!=="Done";}).length;
+  var recCnt=realVis.filter(function(t){return t.recur&&t.recur!=="None"&&!t._virtual;}).length;
+  var mineCnt=base.filter(function(t){return(t.to===effectiveCu||t.shared);}).length;
   var vl=getVL(sel);
   var roleLbl=cu==="Gin"?"Work only":cu==="Sarah"?"Personal & Rentals":"Full access";
 
@@ -1543,19 +1557,9 @@ function App(){
       sb.from("tasks").delete().eq("id",id).then(function(){loadTasks();});
     }
   }
-  function delOneInstance(task){
-    // Delete just this instance — mark it done with no recur so it disappears
-    sb.from("tasks").update({status:"Done",recur:"None"}).eq("id",task.id).then(function(){loadTasks();});
-    setDeleteRecurT(null);
-  }
   function delAllRecurring(task){
-    // Delete the base recurring task
-    // Also delete any spawned instances (same title, any recur value) that are To Do or In Progress
-    var spawnedIds=tasks.filter(function(t){
-      return t.id!==task.id&&t.title===task.title&&t.status!=="Done";
-    }).map(function(t){return t.id;});
-    var allIds=[task.id].concat(spawnedIds);
-    sb.from("tasks").delete().in("id",allIds).then(function(){loadTasks();});
+    // Under the new model, one row per recurring task — just delete it
+    sb.from("tasks").delete().eq("id",task.id).then(function(){loadTasks();});
     setDeleteRecurT(null);
   }
   function saveTemplate(form){
@@ -1599,7 +1603,7 @@ function App(){
   }
 
   function clearDone(){
-    var doneTasks=sorted.filter(function(t){return t.status==="Done"&&!t._virtual;});
+    var doneTasks=base.filter(function(t){return t.status==="Done"&&!t._virtual;});
     if(doneTasks.length===0)return;
     var ids=doneTasks.map(function(t){return t.id;});
     sb.from("tasks").delete().in("id",ids).then(function(){loadTasks();});
