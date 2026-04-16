@@ -869,6 +869,7 @@ function Sidebar(props){
   });
 
   return ce("div",{style:{width:190,flexShrink:0,display:"flex",flexDirection:"column",gap:2}},
+    ce("div",{style:{paddingTop:8}}),
     allBtn,nodeEls,
     ce("div",{style:{borderTop:"0.5px solid #EEE",marginTop:8,paddingTop:10,display:"flex",flexDirection:"column",gap:1}},
       ce("div",{style:{fontSize:10,fontWeight:600,color:"#aaa",textTransform:"uppercase",letterSpacing:".06em",paddingLeft:10,marginBottom:4}},"Assigned to"),
@@ -1411,7 +1412,7 @@ function App(){
   useEffect(function(){
     if(!cu)return;
     var overdue=tasks.filter(function(t){return t.due&&t.due<new Date().toISOString().slice(0,10)&&t.status!=="Done";}).length;
-    document.title=overdue>0?overdue+" overdue · Nuve Tasks":"Nuve Task Manager";
+    document.title=overdue>0?overdue+" overdue · Nuve Task Tracker":"Nuve Task Tracker";
   },[tasks,cu]);
 
   // load tasks from supabase
@@ -1674,26 +1675,26 @@ function App(){
       ce("img",{src:LOGO_SVG,alt:"Nuve",style:{height:20,width:"auto",flexShrink:0}}),
       ce("div",{style:{display:"flex",gap:5,alignItems:"center",flex:1,overflowX:"auto"}},statEls),
       // Search button
-      ce("button",{onClick:function(){setShowSearch(function(v){return !v;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:showSearch?"1.5px solid "+MD:"1.5px solid #DDD",background:showSearch?"#E8FBF1":"#F7F7F6",cursor:"pointer",flexShrink:0}},
+      ce("button",{onClick:function(){setShowSearch(function(v){return !v;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:showSearch?"1.5px solid "+MD:"1.5px solid #DDD",background:showSearch?"#E8FBF1":"#F7F7F6",cursor:"pointer",flexShrink:0,padding:0,lineHeight:0}},
         svg(["M11 11l4 4","M17 7a6 6 0 1 1-12 0 6 6 0 0 1 12 0"],14,14,showSearch?MD:"#888")
       ),
       // Notification badge
       notifyBadge>0?ce("div",{style:{position:"relative",flexShrink:0}},
-        ce("button",{onClick:function(){setView("board");setAf(cu);},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer"}},
+        ce("button",{onClick:function(){setView("board");setAf(cu);},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer",padding:0,lineHeight:0}},
           svg(["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"],14,14,"#DC2626")
         ),
         ce("span",{style:{position:"absolute",top:-4,right:-4,background:"#DC2626",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}},notifyBadge)
       ):null,
       // Dark mode toggle
-      ce("button",{onClick:function(){setDarkMode(function(v){return !v;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:darkMode?"#1A1A2E":"#F7F7F6",cursor:"pointer",flexShrink:0}},
+      ce("button",{onClick:function(){setDarkMode(function(v){return !v;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:darkMode?"#1A1A2E":"#F7F7F6",cursor:"pointer",flexShrink:0,padding:0,lineHeight:0}},
         darkMode?svg(["M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"],14,14,"#E8E8F0"):svg(["M12 2v2","M12 20v2","M4.93 4.93l1.41 1.41","M17.66 17.66l1.41 1.41","M2 12h2","M20 12h2","M4.93 19.07l1.41-1.41","M17.66 6.34l1.41-1.41","M12 6a6 6 0 1 0 0 12A6 6 0 0 0 12 6z"],14,14,"#888")
       ),
       // Export CSV
-      isMobile?null:ce("button",{onClick:exportCSV,title:"Export CSV",style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0}},
+      isMobile?null:ce("button",{onClick:exportCSV,title:"Export CSV",style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0,padding:0,lineHeight:0}},
         svg(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"],14,14,"#888")
       ),
       // Help button
-      ce("button",{onClick:function(){setShowHelp(true);},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0,fontSize:13,fontWeight:700,color:"#666"}},"?"),
+      ce("button",{onClick:function(){setShowHelp(true);},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0,fontSize:13,fontWeight:700,color:"#666",padding:0,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}},"?"),
       ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0",flexShrink:0}},
         Av(cu,22),
         isMobile?null:ce("div",{style:{fontSize:12,fontWeight:600,color:BLK}},proxyView&&cu==="Gin"?"Acting as Jhonatan":cu),
