@@ -303,7 +303,8 @@ function dbToTask(row){
     subtasks:row.subtasks||[], recur:row.recur||"None",
     recur_deadline:row.recur_deadline||"None",
     by:row.by_user, to:row.to_user, shared:!!row.shared,
-    created_at:row.created_at||""
+    created_at:row.created_at||"",
+    comments:row.comments||[]
   };
 }
 // displayDate: the date used for calendar/quarterly bucketing
@@ -319,7 +320,7 @@ function taskToDb(t,byUser){
     title:t.title, ctx:t.ctx, pri:t.pri, due:t.due||null,
     status:t.status, notes:t.notes||"", subtasks:t.subtasks||[],
     recur:t.recur||"None", recur_deadline:t.recur_deadline||"None",
-    private_notes:t.private_notes||"", notify_notes:t.notify_notes||"",
+    private_notes:t.private_notes||"", notify_notes:t.notify_notes||"", comments:t.comments||[],
     by_user:byUser||t.by||t.by_user, to_user:t.to||t.to_user, shared:!!t.shared
   };
 }
@@ -446,7 +447,7 @@ function PinScreen(props){
 function Login(props){
   var [selected,setSelected]=useState(null);
   if(selected){return ce(PinScreen,{name:selected,onSuccess:function(){props.onLogin(selected);},onBack:function(){setSelected(null);}});}
-  return ce("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,"+MD+" 0%,"+MB+" 60%,"+ML+" 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 16px"}},
+  return ce("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,"+MD+" 0%,"+MB+" 60%,"+ML+" 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 16px",position:"relative"}},
     ce("img",{src:LOGO_WHITE,alt:"Nuve",style:{height:44,width:"auto",marginBottom:28}}),
     ce("div",{style:{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}},
       Object.keys(USERS).map(function(name){
@@ -456,7 +457,8 @@ function Login(props){
           ce("div",{style:{fontSize:14,fontWeight:600,color:BLK}},name)
         );
       })
-    )
+    ),
+    ce("div",{style:{position:"absolute",bottom:20,left:0,right:0,textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.55)",letterSpacing:".05em"}},"Nuve Task Manager v1.0")
   );
 }
 
@@ -516,9 +518,41 @@ function CardInner(props){
     task.private_notes&&task.by===cu?ce("div",{style:{display:"flex",gap:7,marginBottom:10,padding:"8px 10px",background:"#FEF0FF",borderRadius:7,border:"1px solid #D8B4FE"}},
         ce("div",{style:{fontSize:11,fontWeight:600,color:"#6B21A8",flexShrink:0,marginTop:1}},"🔒 Private:"),
         ce("span",{style:{fontSize:13,color:"#4C1D95",lineHeight:1.5}},task.private_notes)):null,
-      task.subtasks.length>0?ce("div",{style:{marginBottom:10}},subItems):null,
+      task.subtasks.length>0?ce("div",{style:{marginBottom:10}},
+        ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}},
+          ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".04em"}},done+"/"+task.subtasks.length+" subtasks"),
+          done<task.subtasks.length&&can?ce("button",{onClick:function(e){e.stopPropagation();var allDone=task.subtasks.map(function(s){return Object.assign({},s,{done:true});});sb.from("tasks").update({subtasks:allDone}).eq("id",task.id).then(function(){props.onMove&&props.onMove(task.id,task.status);});},style:{fontSize:10,padding:"2px 8px",borderRadius:6,border:"0.5px solid "+MB,background:"#E8FBF1",cursor:"pointer",color:MD,fontWeight:500}},"Complete all"):null
+        ),
+        subItems
+      ):null,
       rec&&task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 10px",background:RC.bg,borderRadius:7}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},recLbl+" · Next: "+fmt(addInt(task.due,task.recur)))):null,
-      ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:4,flexWrap:"wrap",gap:8}},
+      ce("div",{style:{marginTop:8,borderTop:"0.5px solid #EEE",paddingTop:8}},
+        ce("div",{style:{fontSize:11,fontWeight:600,color:"#aaa",marginBottom:6,textTransform:"uppercase",letterSpacing:".04em"}},"Activity"),
+        (task.comments||[]).map(function(cm,i){
+          return ce("div",{key:i,style:{display:"flex",gap:8,marginBottom:6}},
+            Av(cm.by,18),
+            ce("div",{style:{flex:1,background:"#F7F7F6",borderRadius:8,padding:"6px 10px"}},
+              ce("div",{style:{fontSize:11,fontWeight:600,color:BLK,marginBottom:2}},cm.by," · ",cm.at?cm.at.slice(0,10):""),
+              ce("div",{style:{fontSize:12,color:"#444",lineHeight:1.5}},cm.text)
+            )
+          );
+        }),
+        can?ce("div",{style:{display:"flex",gap:6,marginTop:4}},
+          Av(cu,18),
+          ce("input",{
+            placeholder:"Add a comment...",
+            onKeyDown:function(e){
+              if(e.key==="Enter"&&e.target.value.trim()){
+                var newComments=(task.comments||[]).concat([{by:cu,text:e.target.value.trim(),at:new Date().toISOString()}]);
+                sb.from("tasks").update({comments:newComments}).eq("id",task.id);
+                e.target.value="";
+              }
+            },
+            style:{flex:1,padding:"5px 10px",borderRadius:8,border:"0.5px solid #DDD",fontSize:12,outline:"none",fontFamily:"inherit"}
+          })
+        ):null
+      ),
+      ce("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:8,flexWrap:"wrap",gap:8}},
         ce("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},moveBtns),
         ce("div",{style:{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#999"}},Av(task.to,16),ce("span",null,task.to),task.by!==task.to?ce("span",{style:{color:"#ddd"}},"· by "+task.by):null)
       )
@@ -554,7 +588,7 @@ function TaskModal(props){
   var task=props.task,cu=props.cu;
   var uctxs=USERS[cu]?USERS[cu].ctxs:(USERS["Jhonatan"].ctxs);
   var defCtx=uctxs[0]||NI[0];
-  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",private_notes:"",notify_notes:"",subtasks:[],recur:"None",recur_deadline:"None",by:cu,to:cu,shared:false,status:"To Do"};
+  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",private_notes:"",notify_notes:"",subtasks:[],recur:"None",recur_deadline:"None",comments:[],by:cu,to:cu,shared:false,status:"To Do"};
   var initF=task?Object.assign({},task,{subtasks:task.subtasks.map(function(s){return Object.assign({},s);})}):blank;
   var [f,setF]=useState(initF);
   var [stxt,setStxt]=useState("");
@@ -614,6 +648,17 @@ function TaskModal(props){
       ),
       ce("label",{style:lb},"Title"),
       ce("input",{style:Object.assign({},inp,{marginBottom:14}),value:f.title,onChange:function(e){set("title",e.target.value);},placeholder:"Task title"}),
+      props.templates&&props.templates.length>0?ce("div",{style:{marginBottom:12}},
+        ce("div",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",marginBottom:5}},"Load Template"),
+        ce("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
+          (props.templates||[]).map(function(tpl,i){
+            return ce("div",{key:i,style:{display:"flex",alignItems:"center",gap:0,background:"#F0FDF4",borderRadius:6,border:"0.5px solid #86EFAC",overflow:"hidden"}},
+              ce("button",{onClick:function(){set("ctx",tpl.ctx);set("pri",tpl.pri);set("recur",tpl.recur);set("recur_deadline",tpl.recur_deadline);set("subtasks",tpl.subtasks||[]);set("notes",tpl.notes||"");},style:{padding:"3px 8px",fontSize:11,background:"none",border:"none",cursor:"pointer",color:MD,fontWeight:500}},tpl.name),
+              ce("button",{onClick:function(){props.onDeleteTemplate&&props.onDeleteTemplate(i);},style:{padding:"3px 5px",background:"none",border:"none",cursor:"pointer",color:"#aaa",display:"flex"}},Ico("x",10))
+            );
+          })
+        )
+      ):null,
       ce("label",{style:lb},"Category"),
       ce("div",{style:{marginBottom:14,display:"flex",flexDirection:"column",gap:10}},catNodes),
       ce("label",{style:lb},"Priority"),
@@ -698,6 +743,7 @@ function TaskModal(props){
       ),
       ce("div",{style:{display:"flex",gap:8,justifyContent:"flex-end",borderTop:"0.5px solid #EEE",paddingTop:16}},
         task?ce("button",{onClick:function(){props.onSave({_delete:true});},style:{marginRight:"auto",padding:"8px 14px",borderRadius:8,border:"1px solid #FECACA",background:"none",color:"#DC2626",fontSize:13,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:5}},Ico("trash",13,"#DC2626")," Delete"):null,
+        !task?ce("button",{onClick:function(){props.onSaveTemplate&&props.onSaveTemplate(f);},style:{padding:"8px 12px",borderRadius:8,border:"0.5px solid #86EFAC",background:"#F0FDF4",color:MD,fontSize:12,cursor:"pointer"}},Ico("layers",12,MD)," Save template"):null,
         ce("button",{onClick:props.onClose,style:{padding:"8px 16px",borderRadius:8,border:"0.5px solid #DDD",background:"none",cursor:"pointer",fontSize:14,color:"#666"}},"Cancel"),
         ce("button",{onClick:function(){if(f.title.trim())props.onSave(f);},style:{display:"flex",alignItems:"center",gap:6,padding:"8px 18px",borderRadius:8,border:"none",background:MB,cursor:"pointer",fontSize:14,fontWeight:600,color:BLK}},Ico("check",14,BLK)," Save")
       )
@@ -805,14 +851,14 @@ function Sidebar(props){
     var pCnt=cnt(leafIds);
     var leafEls=isExp?leaves.map(function(c){
       var cSel=sel===c.id,cc=CTC[c.id]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"},cCnt=cnt([c.id]);
-      return ce("button",{key:c.id,onClick:function(){props.onSel(cSel?node.id:c.id);},style:{display:"flex",alignItems:"center",gap:7,padding:"5px 10px",borderRadius:7,border:cSel?"1.5px solid "+cc.bd:"0.5px solid transparent",background:cSel?cc.bg:"transparent",cursor:"pointer",width:"100%",textAlign:"left"}},
+      return ce("button",{key:c.id,onClick:function(){props.onSel(cSel?node.id:c.id);},style:{display:"flex",alignItems:"center",gap:7,padding:"10px 10px",borderRadius:7,border:cSel?"1.5px solid "+cc.bd:"0.5px solid transparent",background:cSel?cc.bg:"transparent",cursor:"pointer",width:"100%",textAlign:"left"}},
         ce("span",{style:{width:6,height:6,borderRadius:"50%",background:cc.bd,flexShrink:0}}),
         ce("span",{style:{fontSize:12,fontWeight:cSel?600:400,color:cSel?cc.tx:"#666",flex:1}},c.label),
         cCnt>0?ce("span",{style:{fontSize:10,color:cSel?cc.tx:"#bbb",background:cSel?cc.bg:"#EBEBEA",borderRadius:20,padding:"0 5px"}},cCnt):null
       );
     }):[];
     return ce("div",{key:node.id},
-      ce("button",{onClick:function(){togExp(node.id);props.onSel(node.id);},style:{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:pSel?"1.5px solid "+ps.ac:"0.5px solid transparent",background:pSel?ps.bg:"transparent",cursor:"pointer",width:"100%",textAlign:"left"}},
+      ce("button",{onClick:function(){togExp(node.id);props.onSel(node.id);},style:{display:"flex",alignItems:"center",gap:8,padding:"11px 10px",borderRadius:8,border:pSel?"1.5px solid "+ps.ac:"0.5px solid transparent",background:pSel?ps.bg:"transparent",cursor:"pointer",width:"100%",textAlign:"left"}},
         ce("span",{style:{width:8,height:8,borderRadius:2,background:ps.ac,flexShrink:0}}),
         ce("span",{style:{fontSize:13,fontWeight:pSel?600:500,color:pSel?ps.tx:"#333",flex:1}},node.label),
         pCnt>0?ce("span",{style:{fontSize:11,color:pSel?ps.tx:"#aaa",background:pSel?ps.ac+"33":"#EBEBEA",borderRadius:20,padding:"0 6px"}},pCnt):null,
@@ -879,7 +925,7 @@ function CalendarView(props){
         );
       });
       if(dayTasks.length>3){pills.push(ce("div",{key:"more",style:{fontSize:10,color:"#999",marginTop:2}},"+"+(dayTasks.length-3)+" more"));}
-      return ce("div",{key:day,style:{minHeight:72,background:isToday?"#E8FBF1":WH,borderRadius:8,border:isToday?"1.5px solid "+MB:"0.5px solid #E2E2E0",padding:"5px 7px"}},
+      return ce("div",{key:day,style:{minHeight:window.innerWidth<700?52:72,background:isToday?"#E8FBF1":WH,borderRadius:8,border:isToday?"1.5px solid "+MB:"0.5px solid #E2E2E0",padding:window.innerWidth<700?"3px 4px":"5px 7px"}},
         ce("div",{style:{fontSize:12,fontWeight:isToday?700:400,color:isToday?MD:isOver?"#ccc":BLK,marginBottom:2}},day),pills
       );
     });
@@ -925,7 +971,7 @@ function RecurringView(props){
     var parentLabel=ctxParent(t.ctx);
     var lbl=recurLabel(t.recur);
     var next=t.due?addInt(t.due,t.recur):null;
-    return ce("div",{key:t.id,style:{background:WH,border:"0.5px solid #E2E2E0",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
+    return ce("div",{key:t.id,style:{background:WH,border:"0.5px solid #E2E2E0",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"flex-start",gap:10,flexWrap:"wrap"}},
       // Parent category circle bubble
       ce("div",{style:{width:36,height:36,borderRadius:"50%",background:pc.bg,border:"1.5px solid "+pc.ac+"55",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
         ce("span",{style:{fontSize:9,fontWeight:700,color:pc.tx,textAlign:"center",lineHeight:1.1}},parentLabel.slice(0,4).toUpperCase())
@@ -1084,7 +1130,7 @@ function QuarterlyView(props){
       ),
       ce("span",{style:{fontSize:11,color:"#aaa",display:"flex",alignItems:"center",gap:3}},Ico("recur",10,"#aaa")," = recurring occurrence")
     ),
-    ce("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},qEls)
+    ce("div",{style:{display:"grid",gridTemplateColumns:window.innerWidth<500?"1fr":"repeat(auto-fit,minmax(200px,1fr))",gap:10}},qEls)
   );
 }
 
@@ -1258,6 +1304,53 @@ function NotesView(props){
   );
 }
 
+
+// ── HelpModal ──────────────────────────────────────────────────────────────
+function HelpModal(props){
+  var sections=[
+    {title:"📋 Board View",body:"Your main workspace. Tasks are organized in three columns: To Do, In Progress, and Done. Click any task to expand it. Use the sort and filter bar to narrow down by priority, due date, or time window (Today / This Week / This Month / This Quarter). Recurring tasks only show within 30 days on the board."},
+    {title:"📅 Monthly View",body:"A full calendar showing all tasks by their due date or created date. Tasks without a due date appear on the day they were created. Recurring tasks are expanded up to 18 months ahead. Click any task pill to open and edit it."},
+    {title:"📊 Quarterly View",body:"Shows all four quarters of the year side by side. Navigate between years with the arrows. Recurring tasks are automatically expanded for the full year. Click any task row to edit it. Color dots match the task's category color."},
+    {title:"🔁 Recurring View",body:"Lists only the base recurring tasks — one row per repeating task. Edit the repeat schedule, deadline offset, or any task details here. Changes apply to all future occurrences. Delete from here removes the entire recurring series."},
+    {title:"📝 Notes",body:"A standalone scratchpad separate from tasks. Three tabs: Private (only you see it), Context (tied to a category like Nuve or Kesos), and Shared (a live scratchpad between you and one other user). Notes auto-save as you type."},
+    {title:"✅ Creating & Editing Tasks",body:"Tap '+ New task' or '+ Add task' at the bottom of any column. Fill in title, category, priority, due date, and who it's assigned to. You can add subtasks (reorderable by the arrows), notes, private notes, and a message for the assignee. For recurring tasks, set the repeat schedule and an optional deadline offset."},
+    {title:"🔄 Recurring Tasks",body:"When you complete a recurring task, choose 'Mark done & schedule next' to automatically create the next occurrence, or 'Mark done only' to stop the series. To delete: 'Delete this instance only' removes just that occurrence; 'Delete all repeating tasks' removes the series permanently (requires confirmation)."},
+    {title:"🗂 Categories & Filters",body:"Use the sidebar to filter by category or subcategory. The 'Assigned to' section filters tasks by who they belong to. All views respect the active sidebar filter. Click 'All tasks' to reset."},
+    {title:"🏷 Past Due",body:"Overdue tasks show a red PAST DUE badge. Use the Past Due filter button in the sort bar to see only overdue tasks across all views."},
+    {title:"👥 Users & Access",body:"Jhonatan has full access to all categories. Sarah sees Personal & Rentals categories plus her own Work section. Gin sees Nuve and Kesos Tacos. Gin can also switch to 'View as Jhonatan' mode to act on his behalf (except Personal tasks). Each user has a 4-digit PIN."},
+    {title:"🗑 Clear Done",body:"In the Board view, the Done column has a 'Clear all' button that permanently deletes all completed tasks. For recurring tasks, only the completed instance is removed — the next occurrence stays in To Do."},
+  ];
+  var [openIdx,setOpenIdx]=useState(null);
+  return ce("div",{onClick:props.onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px 16px",overflowY:"auto"}},
+    ce("div",{onClick:function(e){e.stopPropagation();},style:{background:WH,borderRadius:16,width:"100%",maxWidth:580,boxShadow:"0 16px 48px rgba(0,0,0,.18)"}},
+      // Header
+      ce("div",{style:{padding:"20px 24px 16px",borderBottom:"1px solid #F0F0EE",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:WH,borderRadius:"16px 16px 0 0",zIndex:1}},
+        ce("div",null,
+          ce("h2",{style:{fontSize:18,fontWeight:700,color:BLK,margin:0}},"How to Use Nuve Task Manager"),
+          ce("p",{style:{fontSize:12,color:"#888",margin:"4px 0 0"}})
+        ),
+        ce("button",{onClick:props.onClose,style:{background:"none",border:"none",cursor:"pointer",color:"#aaa",display:"flex",padding:4,borderRadius:8}},Ico("x",18,"#aaa"))
+      ),
+      // Sections
+      ce("div",{style:{padding:"12px 16px 20px"}},
+        sections.map(function(s,i){
+          var open=openIdx===i;
+          return ce("div",{key:i,style:{borderRadius:10,border:"0.5px solid #E8E8E6",marginBottom:6,overflow:"hidden"}},
+            ce("button",{onClick:function(){setOpenIdx(open?null:i);},style:{width:"100%",padding:"13px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",background:open?"#E8FBF1":"#FAFAF9",border:"none",cursor:"pointer",textAlign:"left",gap:8}},
+              ce("span",{style:{fontSize:13,fontWeight:600,color:open?MD:BLK}},s.title),
+              Ico(open?"chevu":"chev",14,"#aaa")
+            ),
+            open?ce("div",{style:{padding:"10px 16px 14px",fontSize:13,color:"#444",lineHeight:1.7,borderTop:"0.5px solid #E8E8E6",background:WH}},s.body):null
+          );
+        }),
+        ce("div",{style:{marginTop:16,padding:"12px 16px",background:"#E8FBF1",borderRadius:10,fontSize:12,color:MD,lineHeight:1.6,textAlign:"center"}},
+          "💡 Tip: The sidebar filter applies to all views — Board, Monthly, Quarterly, and Recurring."
+        )
+      )
+    )
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────
 function App(){
   var [cu,setCu]=useState(null);
@@ -1276,6 +1369,50 @@ function App(){
   var [dateWindow,setDateWindow]=useState(null); // null|'today'|'week'|'month'|'quarter'
   var [dateWindowBy,setDateWindowBy]=useState('due'); // 'due'|'created'
   var [proxyView,setProxyView]=useState(false); // Gin viewing as Jhonatan
+  var [showHelp,setShowHelp]=useState(false);
+  var [searchQ,setSearchQ]=useState("");
+  var [showSearch,setShowSearch]=useState(false);
+  var [darkMode,setDarkMode]=useState(false);
+  var [seenNotify,setSeenNotify]=useState({});  // taskId -> true when opened
+  var [templates,setTemplates]=useState(function(){try{return JSON.parse(localStorage.getItem("nuve_templates")||"[]");}catch(e){return [];}});
+
+  // Dark mode
+  useEffect(function(){
+    var root=document.documentElement;
+    if(darkMode){
+      root.style.setProperty("--bg","#1A1A2E");
+      root.style.setProperty("--surface","#16213E");
+      root.style.setProperty("--border","#2A2A4A");
+      root.style.setProperty("--text","#E8E8F0");
+      document.body.style.background="#1A1A2E";
+      document.body.style.color="#E8E8F0";
+    } else {
+      root.style.removeProperty("--bg");
+      root.style.removeProperty("--surface");
+      root.style.removeProperty("--border");
+      root.style.removeProperty("--text");
+      document.body.style.background="";
+      document.body.style.color="";
+    }
+  },[darkMode]);
+
+  // Keyboard shortcuts
+  useEffect(function(){
+    function onKey(e){
+      if(e.key==="Escape"){setModal(false);setEditT(null);setShowHelp(false);setShowSearch(false);}
+      if(e.key==="n"&&!modal&&!showHelp&&e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"){setEditT(null);setModal(true);}
+      if(e.key==="/"&&e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"){e.preventDefault();setShowSearch(function(v){return !v;});}
+    }
+    window.addEventListener("keydown",onKey);
+    return function(){window.removeEventListener("keydown",onKey);};
+  },[modal,showHelp]);
+
+  // Tab title: overdue count
+  useEffect(function(){
+    if(!cu)return;
+    var overdue=tasks.filter(function(t){return t.due&&t.due<new Date().toISOString().slice(0,10)&&t.status!=="Done";}).length;
+    document.title=overdue>0?overdue+" overdue · Nuve Tasks":"Nuve Task Manager";
+  },[tasks,cu]);
 
   // load tasks from supabase
   var loadTasks=useCallback(function(){
@@ -1347,14 +1484,16 @@ function App(){
     }
     return true;
   }):baseFiltered2;
-  var sorted=srt?baseFiltered.slice().sort(function(a,b){
+  var baseSearched=searchQ.trim()?baseFiltered.filter(function(t){var q=searchQ.toLowerCase();return t.title.toLowerCase().indexOf(q)>=0||(t.notes&&t.notes.toLowerCase().indexOf(q)>=0)||(t.ctx&&ctxLbl(t.ctx).toLowerCase().indexOf(q)>=0);}):baseFiltered;
+  var sorted=srt?baseSearched.slice().sort(function(a,b){
     if(srt==="pa")return PO[a.pri]-PO[b.pri];
     if(srt==="pd")return PO[b.pri]-PO[a.pri];
     if(srt==="da")return(a.due||"9999")>(b.due||"9999")?1:-1;
     if(srt==="dd")return(a.due||"0000")<(b.due||"0000")?1:-1;
     return 0;
-  }):baseFiltered;
+  }):baseSearched;
 
+  var notifyBadge=tasks.filter(function(t){return t.notify_notes&&t.to===cu&&t.status!=="Done"&&!seenNotify[t.id];}).length;
   var openCnt=allVis.filter(function(t){return t.status!=="Done";}).length;
   var recCnt=allVis.filter(function(t){return t.recur!=="None"&&t.status!=="Done";}).length;
   var mineCnt=allVis.filter(function(t){return(t.to===effectiveCu||t.shared)&&t.status!=="Done";}).length;
@@ -1392,6 +1531,46 @@ function App(){
     sb.from("tasks").delete().eq("id",task.id).then(function(){loadTasks();});
     setDeleteRecurT(null);
   }
+  function saveTemplate(form){
+    var name=window.prompt("Name this template:");
+    if(!name||!name.trim())return;
+    var tpl={name:name.trim(),ctx:form.ctx,pri:form.pri,recur:form.recur,recur_deadline:form.recur_deadline,subtasks:form.subtasks,notes:form.notes};
+    var updated=templates.concat([tpl]);
+    setTemplates(updated);
+    try{localStorage.setItem("nuve_templates",JSON.stringify(updated));}catch(e){}
+  }
+  function deleteTemplate(i){
+    var updated=templates.filter(function(_,j){return j!==i;});
+    setTemplates(updated);
+    try{localStorage.setItem("nuve_templates",JSON.stringify(updated));}catch(e){}
+  }
+
+  function exportCSV(){
+    var rows=[["Title","Category","Priority","Status","Due Date","Assigned To","Created By","Recurring","Created At"]];
+    var exportTasks=tasks.filter(function(t){return USERS[cu]&&(USERS[cu].ctxs.indexOf(t.ctx)>=0||(t.shared&&isPers(t.ctx)))});
+    exportTasks.forEach(function(t){
+      rows.push([
+        '"'+(t.title||"").replace(/"/g,'""')+'"',
+        ctxLbl(t.ctx),
+        t.pri,
+        t.status,
+        t.due||"",
+        t.to,
+        t.by,
+        recurLabel(t.recur)||"None",
+        t.created_at?t.created_at.slice(0,10):""
+      ]);
+    });
+    var csv=rows.map(function(r){return r.join(",");}).join("\n");
+    var blob=new Blob([csv],{type:"text/csv"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url;
+    a.download="nuve-tasks-"+new Date().toISOString().slice(0,10)+".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function clearDone(){
     var doneTasks=sorted.filter(function(t){return t.status==="Done"&&!t._virtual;});
     if(doneTasks.length===0)return;
@@ -1426,7 +1605,7 @@ function App(){
   var colEls=COLS.map(function(col){
     var cm=CC[col];
     var items=sorted.filter(function(t){return t.status===col;});
-    var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:effectiveCu,onMove:t._virtual?function(){}:moveTask,onEdit:function(tk){if(!tk._virtual){setEditT(tk);setModal(true);}},onDel:t._virtual?function(){}:delTask,onComplete:t._virtual?function(){}:doComplete});});
+    var cards=items.length===0?[ce("div",{key:"empty",style:{textAlign:"center",padding:"22px 0",color:"#bbb",fontSize:13}},"No tasks")]:items.map(function(t){return ce(TaskCard,{key:t.id,task:t,cu:effectiveCu,onMove:t._virtual?function(){}:moveTask,onEdit:function(tk){if(!tk._virtual){setEditT(tk);setModal(true);if(tk.notify_notes&&tk.to===cu)setSeenNotify(function(s){var n=Object.assign({},s);n[tk.id]=true;return n;});}},onDel:t._virtual?function(){}:delTask,onComplete:t._virtual?function(){}:doComplete});});
     var colHeader=ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"7px 10px",background:cm.bg,borderRadius:8,border:"0.5px solid "+cm.ac+"33"}},
       ce("span",{style:{width:8,height:8,borderRadius:"50%",background:cm.ac,flexShrink:0}}),
       ce("span",{style:{fontSize:13,fontWeight:600,color:cm.tx,flex:1}},col),
@@ -1451,16 +1630,16 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},base.filter(function(t){return t.status!=="Done";}).length+" open")
     ),
-    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}},
-      ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".05em"}},"Sort"),
+    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap",overflowX:"auto"}},
+      ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",flexShrink:0}},"Sort"),
       sortBtns,
       ce("button",{onClick:function(){setFilterPastDue(function(v){return !v;});},style:{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:filterPastDue?700:400,border:filterPastDue?"1.5px solid #DC2626":"0.5px solid #DDD",background:filterPastDue?"#FEF2F2":"#F7F7F6",color:filterPastDue?"#DC2626":"#666",cursor:"pointer"}},
         svg(["M12 9v4","M12 17h.01","M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"],11,11,filterPastDue?"#DC2626":"#999")," Past Due"
       ),
       srt?ce("button",{onClick:function(){setSrt(null);},style:{fontSize:11,color:"#999",background:"none",border:"none",cursor:"pointer",padding:"2px 4px"}},"x clear"):null
     ),
-    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}},
-      ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".05em"}},"Show"),
+    ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap",overflowX:"auto"}},
+      ce("span",{style:{fontSize:11,color:"#aaa",fontWeight:600,textTransform:"uppercase",letterSpacing:".05em",flexShrink:0}},"Show"),
       ["today","week","month","quarter"].map(function(w){
         var labels={today:"Today",week:"This Week",month:"This Month",quarter:"This Quarter"};
         var a=dateWindow===w;
@@ -1483,43 +1662,82 @@ function App(){
     ce(CalendarView,{cu:cu,tasks:base.concat(generateOccurrences(base.filter(function(t){return t.status!=="Done"&&!t._virtual;}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
   );
 
-  var topBar=ce("div",{style:{background:WH,borderRadius:12,padding:"10px 14px",marginBottom:12,border:"0.5px solid #E2E2E0",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
-    // Sidebar toggle button
-    ce("button",{onClick:function(){setSideOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:8,border:"0.5px solid #DDD",background:sideOpen?"#E8FBF1":"#F7F7F6",cursor:"pointer",flexShrink:0}},
-      svg(sideOpen?["M3 5h10","M3 8h7","M3 11h4"]:["M3 5h10","M3 8h10","M3 11h10"],16,16,sideOpen?MD:"#666")
-    ),
-    ce("img",{src:LOGO_SVG,alt:"Nuve",style:{height:22,width:"auto",flexShrink:0}}),
-    ce("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",flex:1}},
-      statEls
-    ),
-    ce("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
-      ce("button",{onClick:function(){setEditT(null);setModal(true);},style:{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:9,fontSize:13,fontWeight:600,border:"none",background:MB,color:BLK,cursor:"pointer"}},Ico("plus",14,BLK)," New task"),
-      ce("div",{style:{display:"flex",border:"0.5px solid #DDD",borderRadius:8,overflow:"hidden"}},
-        ce("button",{onClick:function(){setView("board");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="board"?600:400,background:view==="board"?MB:"#F7F7F6",color:view==="board"?BLK:"#666",border:"none",cursor:"pointer"}},"Board"),
-        ce("button",{onClick:function(){setView("calendar");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="calendar"?600:400,background:view==="calendar"?MB:"#F7F7F6",color:view==="calendar"?BLK:"#666",border:"none",cursor:"pointer"}},"Monthly"),
-        ce("button",{onClick:function(){setView("quarterly");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="quarterly"?600:400,background:view==="quarterly"?MB:"#F7F7F6",color:view==="quarterly"?BLK:"#666",border:"none",cursor:"pointer"}},"Quarterly"),
-        ce("button",{onClick:function(){setView("recurring");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="recurring"?600:400,background:view==="recurring"?MB:"#F7F7F6",color:view==="recurring"?BLK:"#666",border:"none",cursor:"pointer"}},"Recurring"),
-        ce("button",{onClick:function(){setView("notes");},style:{padding:"6px 11px",fontSize:12,fontWeight:view==="notes"?600:400,background:view==="notes"?MB:"#F7F7F6",color:view==="notes"?BLK:"#666",border:"none",cursor:"pointer"}},"Notes")
+  var isMobile=window.innerWidth<700;
+  var DM=darkMode; // shorthand for dark mode checks in JSX
+  var viewLabels={board:"Board",calendar:"Monthly",quarterly:"Quarterly",recurring:"Recurring",notes:"Notes"};
+  var topBar=ce("div",{style:{background:DM?"#16213E":WH,borderRadius:12,padding:"8px 12px",marginBottom:12,border:"0.5px solid "+(DM?"#2A2A4A":"#E2E2E0")}},
+    // Row 1: logo + stats + user
+    ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+      ce("button",{onClick:function(){setSideOpen(function(o){return !o;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:8,border:"0.5px solid #DDD",background:sideOpen?"#E8FBF1":"#F7F7F6",cursor:"pointer",flexShrink:0}},
+        svg(sideOpen?["M3 5h10","M3 8h7","M3 11h4"]:["M3 5h10","M3 8h10","M3 11h10"],16,16,sideOpen?MD:"#666")
       ),
-      cu==="Gin"?ce("button",{onClick:function(){setProxyView(function(v){return !v;});},style:{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:9,border:proxyView?"1.5px solid #00965E":"1px solid #DDD",background:proxyView?"#E0F7EE":"#F7F7F6",cursor:"pointer",fontSize:12,fontWeight:proxyView?600:400,color:proxyView?MD:"#555"}},
-        Av("Jhonatan",20),proxyView?"Jhonatan View":"View as Jhonatan"
+      ce("img",{src:LOGO_SVG,alt:"Nuve",style:{height:20,width:"auto",flexShrink:0}}),
+      ce("div",{style:{display:"flex",gap:5,alignItems:"center",flex:1,overflowX:"auto"}},statEls),
+      // Search button
+      ce("button",{onClick:function(){setShowSearch(function(v){return !v;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:showSearch?"1.5px solid "+MD:"1.5px solid #DDD",background:showSearch?"#E8FBF1":"#F7F7F6",cursor:"pointer",flexShrink:0}},
+        svg(["M11 11l4 4","M17 7a6 6 0 1 1-12 0 6 6 0 0 1 12 0"],14,14,showSearch?MD:"#888")
+      ),
+      // Notification badge
+      notifyBadge>0?ce("div",{style:{position:"relative",flexShrink:0}},
+        ce("button",{onClick:function(){setView("board");setAf(cu);},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #FCA5A5",background:"#FEF2F2",cursor:"pointer"}},
+          svg(["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"],14,14,"#DC2626")
+        ),
+        ce("span",{style:{position:"absolute",top:-4,right:-4,background:"#DC2626",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}},notifyBadge)
       ):null,
-      ce("div",{style:{display:"flex",alignItems:"center",gap:7,padding:"5px 9px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0"}},
-        Av(cu,24),
-        ce("div",{style:{fontSize:12,fontWeight:600,color:BLK,lineHeight:1.2}},proxyView&&cu==="Gin"?"Acting as Jhonatan":cu),
-        ce("button",{onClick:function(){setCu(null);setProxyView(false);},style:{background:"none",border:"none",cursor:"pointer",color:"#bbb",display:"flex",padding:3,marginLeft:2}},Ico("logout",14))
+      // Dark mode toggle
+      ce("button",{onClick:function(){setDarkMode(function(v){return !v;});},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:darkMode?"#1A1A2E":"#F7F7F6",cursor:"pointer",flexShrink:0}},
+        darkMode?svg(["M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"],14,14,"#E8E8F0"):svg(["M12 2v2","M12 20v2","M4.93 4.93l1.41 1.41","M17.66 17.66l1.41 1.41","M2 12h2","M20 12h2","M4.93 19.07l1.41-1.41","M17.66 6.34l1.41-1.41","M12 6a6 6 0 1 0 0 12A6 6 0 0 0 12 6z"],14,14,"#888")
+      ),
+      // Export CSV
+      isMobile?null:ce("button",{onClick:exportCSV,title:"Export CSV",style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0}},
+        svg(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"],14,14,"#888")
+      ),
+      // Help button
+      ce("button",{onClick:function(){setShowHelp(true);},style:{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:"1.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0,fontSize:13,fontWeight:700,color:"#666"}},"?"),
+      ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",background:"#F7F7F6",borderRadius:9,border:"0.5px solid #E2E2E0",flexShrink:0}},
+        Av(cu,22),
+        isMobile?null:ce("div",{style:{fontSize:12,fontWeight:600,color:BLK}},proxyView&&cu==="Gin"?"Acting as Jhonatan":cu),
+        ce("button",{onClick:function(){setCu(null);setProxyView(false);},style:{background:"none",border:"none",cursor:"pointer",color:"#bbb",display:"flex",padding:2}},Ico("logout",13))
       )
+    ),
+    // Search bar row
+    showSearch?ce("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"4px 0"}},
+      ce("input",{
+        autoFocus:true,
+        value:searchQ,
+        onChange:function(e){setSearchQ(e.target.value);},
+        onKeyDown:function(e){if(e.key==="Escape"){setShowSearch(false);setSearchQ("");}},
+        placeholder:"Search tasks... (press / to toggle)",
+        style:{flex:1,padding:"7px 12px",borderRadius:9,border:"1.5px solid "+MD,background:"#F7F7F6",fontSize:13,color:BLK,outline:"none",fontFamily:"inherit"}
+      }),
+      searchQ?ce("button",{onClick:function(){setSearchQ("");},style:{background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:12,padding:"0 4px"}},"✕ clear"):null
+    ):null,
+    // Row 2: view switcher + actions
+    ce("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"nowrap",overflowX:"auto"}},
+      ce("button",{onClick:function(){setEditT(null);setModal(true);},style:{display:"flex",alignItems:"center",gap:4,padding:"6px 12px",borderRadius:9,fontSize:12,fontWeight:600,border:"none",background:MB,color:BLK,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}},Ico("plus",13,BLK),isMobile?"":"New task"),
+      // View buttons — on mobile use a select dropdown, on desktop use button row
+      isMobile?ce("select",{value:view,onChange:function(e){setView(e.target.value);},style:{flex:1,padding:"6px 10px",borderRadius:8,border:"0.5px solid #DDD",background:WH,fontSize:12,color:BLK,fontFamily:"inherit"}},
+        Object.keys(viewLabels).map(function(v){return ce("option",{key:v,value:v},viewLabels[v]);})
+      ):ce("div",{style:{display:"flex",border:"0.5px solid #DDD",borderRadius:8,overflow:"hidden",flexShrink:0}},
+        Object.keys(viewLabels).map(function(v){return ce("button",{key:v,onClick:function(){setView(v);},style:{padding:"6px 11px",fontSize:12,fontWeight:view===v?600:400,background:view===v?MB:"#F7F7F6",color:view===v?BLK:"#666",border:"none",cursor:"pointer"}},viewLabels[v]);})
+      ),
+      isMobile?ce("button",{onClick:exportCSV,title:"Export CSV",style:{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:8,border:"0.5px solid #DDD",background:"#F7F7F6",cursor:"pointer",flexShrink:0}},
+        svg(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"],14,14,"#888")
+      ):null,
+      cu==="Gin"?ce("button",{onClick:function(){setProxyView(function(p){return !p;});},style:{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:9,border:proxyView?"1.5px solid #00965E":"1px solid #DDD",background:proxyView?"#E0F7EE":"#F7F7F6",cursor:"pointer",fontSize:11,fontWeight:proxyView?600:400,color:proxyView?MD:"#555",flexShrink:0,whiteSpace:"nowrap"}},
+        Av("Jhonatan",18),proxyView?"J-View":"As Jhonatan"
+      ):null
     )
   );
 
   var modalEl=null;
-  if(modal){modalEl=ce(TaskModal,{task:editT,cu:effectiveCu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);}});}
+  if(modal){modalEl=ce(TaskModal,{task:editT,cu:effectiveCu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);},templates:templates,onSaveTemplate:saveTemplate,onDeleteTemplate:deleteTemplate});}
   var recurEl=null;
   if(recurT){recurEl=ce(RecurModal,{task:recurT,onSpawn:spawnNext,onArchive:function(){moveTask(recurT.id,"Done");setRecurT(null);},onClose:function(){setRecurT(null);}});}
   var deleteRecurEl=null;
   if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteOne:function(){delOneInstance(deleteRecurT);},onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
 
-  return ce("div",{style:{background:"#F2F2F0",minHeight:"100vh",padding:14,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}},
+  return ce("div",{style:{background:darkMode?"#1A1A2E":"#F2F2F0",minHeight:"100vh",padding:14,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",color:darkMode?"#E8E8F0":BLK,transition:"background .2s"}},
     topBar,
     ce("div",{style:{display:"flex",gap:12,alignItems:"flex-start",position:"relative"}},
       // Sidebar — on mobile overlays as a drawer, on desktop stays inline
@@ -1530,7 +1748,7 @@ function App(){
         left:window.innerWidth<700?0:undefined,
         bottom:window.innerWidth<700?0:undefined,
         zIndex:window.innerWidth<700?150:undefined,
-        width:window.innerWidth<700?"75vw":undefined,
+        width:window.innerWidth<700?"85vw":undefined,
         boxShadow:window.innerWidth<700?"4px 0 24px rgba(0,0,0,.18)":undefined,
         overflowY:window.innerWidth<700?"auto":undefined,
         paddingTop:window.innerWidth<700?20:undefined,
@@ -1550,7 +1768,8 @@ function App(){
         boardView
       )
     ),
-    modalEl,recurEl,deleteRecurEl
+    modalEl,recurEl,deleteRecurEl,
+    showHelp?ce(HelpModal,{onClose:function(){setShowHelp(false);}}):null
   );
 }
 
