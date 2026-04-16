@@ -1460,6 +1460,7 @@ function App(){
   var effectiveCu=proxyView&&cu==="Gin"?"Jhonatan":cu;
   var uctxs=proxyView&&cu==="Gin"?AI.filter(function(x){return PI.indexOf(x)<0;}):USERS[cu].ctxs;
   var actCtxs=resolveCtxs(sel,uctxs);
+  var todayStr=new Date().toISOString().slice(0,10);
   var realVis=tasks.filter(function(t){
     if(uctxs.indexOf(t.ctx)>=0)return true;
     if(t.shared&&isPers(t.ctx)&&(effectiveCu==="Jhonatan"||effectiveCu==="Sarah")&&cu!=="Gin")return true;
