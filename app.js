@@ -751,75 +751,26 @@ function TaskModal(props){
   );
 }
 
-// ── RecurModal (complete confirmation) ─────────────────────────────────────
-function RecurModal(props){
-  var task=props.task;
-  var next=task.due?addInt(task.due,task.recur):null;
-  return ce("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200},onClick:props.onClose},
-    ce("div",{style:{background:WH,borderRadius:14,padding:"22px 24px",width:"min(90vw,380px)"},onClick:function(e){e.stopPropagation();}},
-      ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
-        ce("div",{style:{width:36,height:36,borderRadius:9,background:RC.bg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},Ico("recur",18,RC.tx)),
-        ce("h2",{style:{margin:0,fontSize:16,fontWeight:500,color:BLK}},"Recurring task completed")
-      ),
-      ce("p",{style:{fontSize:13,color:"#666",margin:"0 0 8px"}},ce("span",{style:{fontWeight:500,color:BLK}},task.title)," repeats ",recurLabel(task.recur)||task.recur,"."),
-      next?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:16}},Ico("cal",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next due: "+fmt(next))):null,
-      ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
-        ce("button",{onClick:props.onSpawn,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"none",background:MB,cursor:"pointer",fontSize:14,fontWeight:600,color:BLK}},Ico("recur",15,BLK)," Mark done & schedule next"),
-        ce("button",{onClick:props.onArchive,style:{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:9,border:"0.5px solid #DDD",background:"#F2F2F0",cursor:"pointer",fontSize:14,color:BLK}},Ico("check",15)," Mark done only (stop repeating)"),
-        ce("button",{onClick:props.onClose,style:{padding:"10px 14px",borderRadius:9,border:"none",background:"none",cursor:"pointer",fontSize:14,color:"#999"}},"Cancel")
-      )
-    )
-  );
-}
-
 // ── DeleteRecurModal ────────────────────────────────────────────────────────
 function DeleteRecurModal(props){
   var task=props.task;
-  var [sel,setSel]=useState("one");
   var [confirm,setConfirm]=useState(false);
-
-  function doDelete(){
-    if(sel==="one"){
-      props.onDeleteOne();
-    } else {
-      if(!confirm){setConfirm(true);return;}
-      props.onDeleteAll();
-    }
-  }
-
   return ce("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300},onClick:props.onClose},
-    ce("div",{style:{background:WH,borderRadius:14,padding:"24px",width:"min(92vw,420px)"},onClick:function(e){e.stopPropagation();}},
-      ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:16}},
+    ce("div",{style:{background:WH,borderRadius:14,padding:"24px",width:"min(92vw,400px)"},onClick:function(e){e.stopPropagation();}},
+      ce("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:14}},
         ce("div",{style:{width:36,height:36,borderRadius:9,background:"#FEE2E2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},Ico("trash",18,"#DC2626")),
         ce("h2",{style:{margin:0,fontSize:16,fontWeight:600,color:BLK}},"Delete recurring task")
       ),
-      ce("p",{style:{fontSize:13,color:"#555",marginBottom:16,lineHeight:1.5}},
-        ce("strong",null,task.title)," is a recurring task (",recurLabel(task.recur),"). What would you like to delete?"
+      ce("p",{style:{fontSize:13,color:"#555",marginBottom:16,lineHeight:1.6}},
+        "This will permanently delete ",ce("strong",null,task.title)," and all active instances of this recurring task. This cannot be undone."
       ),
-      // Options
-      ce("div",{style:{display:"flex",flexDirection:"column",gap:8,marginBottom:20}},
-        ce("label",{style:{display:"flex",alignItems:"flex-start",gap:10,padding:"12px 14px",borderRadius:10,border:sel==="one"?"2px solid "+MB:"1px solid #DDD",background:sel==="one"?"#E8FBF1":WH,cursor:"pointer"}},
-          ce("input",{type:"radio",name:"del_scope",value:"one",checked:sel==="one",onChange:function(){setSel("one");setConfirm(false);},style:{marginTop:2,accentColor:MD}}),
-          ce("div",null,
-            ce("div",{style:{fontSize:13,fontWeight:600,color:BLK}},"Delete this instance only"),
-            ce("div",{style:{fontSize:12,color:"#888",marginTop:2}},"Future occurrences will continue as scheduled")
-          )
-        ),
-        ce("label",{style:{display:"flex",alignItems:"flex-start",gap:10,padding:"12px 14px",borderRadius:10,border:sel==="all"?"2px solid #EF4444":"1px solid #DDD",background:sel==="all"?"#FEF2F2":WH,cursor:"pointer"}},
-          ce("input",{type:"radio",name:"del_scope",value:"all",checked:sel==="all",onChange:function(){setSel("all");setConfirm(false);},style:{marginTop:2,accentColor:"#EF4444"}}),
-          ce("div",null,
-            ce("div",{style:{fontSize:13,fontWeight:600,color:"#DC2626"}},"Delete all repeating tasks"),
-            ce("div",{style:{fontSize:12,color:"#888",marginTop:2}},"Removes this and all future occurrences permanently")
-          )
-        )
-      ),
-      confirm&&sel==="all"?ce("div",{style:{padding:"10px 14px",borderRadius:8,background:"#FEF2F2",border:"1px solid #FECACA",marginBottom:16,fontSize:13,color:"#DC2626",fontWeight:500}},
-        "⚠️ Are you sure? This cannot be undone."
+      confirm?ce("div",{style:{padding:"10px 14px",borderRadius:8,background:"#FEF2F2",border:"1px solid #FECACA",marginBottom:16,fontSize:13,color:"#DC2626",fontWeight:500}},
+        "⚠️ Confirm: delete this task and all its occurrences?"
       ):null,
       ce("div",{style:{display:"flex",gap:10,justifyContent:"flex-end"}},
         ce("button",{onClick:props.onClose,style:{padding:"9px 16px",borderRadius:8,border:"1px solid #DDD",background:WH,color:"#666",fontSize:14,cursor:"pointer"}},"Cancel"),
-        ce("button",{onClick:doDelete,style:{padding:"9px 18px",borderRadius:8,border:"none",background:sel==="all"?"#DC2626":MB,color:sel==="all"?WH:BLK,fontSize:14,fontWeight:600,cursor:"pointer"}},
-          confirm&&sel==="all"?"Yes, delete all":sel==="all"?"Delete all":"Delete this one"
+        ce("button",{onClick:function(){if(!confirm){setConfirm(true);}else{props.onDeleteAll();}},style:{padding:"9px 18px",borderRadius:8,border:"none",background:"#DC2626",color:WH,fontSize:14,fontWeight:600,cursor:"pointer"}},
+          confirm?"Yes, delete all":"Delete all occurrences"
         )
       )
     )
@@ -1362,9 +1313,8 @@ function App(){
   var [view,setView]=useState("board");
   var [modal,setModal]=useState(false);
   var [editT,setEditT]=useState(null);
-  var [recurT,setRecurT]=useState(null);
-  var [sideOpen,setSideOpen]=useState(window.innerWidth>=700);
   var [deleteRecurT,setDeleteRecurT]=useState(null);
+  var [sideOpen,setSideOpen]=useState(window.innerWidth>=700);
   var [filterPastDue,setFilterPastDue]=useState(false);
   var [dateWindow,setDateWindow]=useState(null); // null|'today'|'week'|'month'|'quarter'
   var [dateWindowBy,setDateWindowBy]=useState('due'); // 'due'|'created'
@@ -1533,8 +1483,13 @@ function App(){
     setDeleteRecurT(null);
   }
   function delAllRecurring(task){
-    // Delete this task and all future virtual ones (they aren't in DB yet, just delete base)
-    sb.from("tasks").delete().eq("id",task.id).then(function(){loadTasks();});
+    // Delete the base recurring task
+    // Also delete any spawned instances (same title, any recur value) that are To Do or In Progress
+    var spawnedIds=tasks.filter(function(t){
+      return t.id!==task.id&&t.title===task.title&&t.status!=="Done";
+    }).map(function(t){return t.id;});
+    var allIds=[task.id].concat(spawnedIds);
+    sb.from("tasks").delete().in("id",allIds).then(function(){loadTasks();});
     setDeleteRecurT(null);
   }
   function saveTemplate(form){
@@ -1583,19 +1538,7 @@ function App(){
     var ids=doneTasks.map(function(t){return t.id;});
     sb.from("tasks").delete().in("id",ids).then(function(){loadTasks();});
   }
-  function doComplete(task){if(task.recur&&task.recur!=="None"){setRecurT(task);}else{moveTask(task.id,"Done");}}
-  function spawnNext(){
-    var t=recurT;
-    var nextStart=addInt(t.due,t.recur);
-    // due on the new task = nextStart (the recurrence day, e.g. next Wednesday)
-    // The deadline offset is handled by recur_deadline on the task itself
-    // This ensures the 30-day board filter compares against the START date, not the deadline
-    sb.from("tasks").update({status:"Done",recur:"None"}).eq("id",t.id).then(function(){
-      var newTask=taskToDb(Object.assign({},t,{status:"To Do",due:nextStart,subtasks:t.subtasks.map(function(s){return Object.assign({},s,{done:false});})}),t.by);
-      sb.from("tasks").insert([newTask]).then(function(){loadTasks();});
-    });
-    setRecurT(null);
-  }
+  function doComplete(task){moveTask(task.id,"Done");}
 
   var DM2=darkMode;
   var DMsurface=DM2?"#1E2130":WH;
@@ -1748,7 +1691,7 @@ function App(){
   var modalEl=null;
   if(modal){modalEl=ce(TaskModal,{task:editT,cu:effectiveCu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);},templates:templates,onSaveTemplate:saveTemplate,onDeleteTemplate:deleteTemplate});}
   var recurEl=null;
-  if(recurT){recurEl=ce(RecurModal,{task:recurT,onSpawn:spawnNext,onArchive:function(){moveTask(recurT.id,"Done");setRecurT(null);},onClose:function(){setRecurT(null);}});}
+  if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
   var deleteRecurEl=null;
   if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteOne:function(){delOneInstance(deleteRecurT);},onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
 
@@ -1783,7 +1726,7 @@ function App(){
         boardView
       )
     ),
-    modalEl,recurEl,deleteRecurEl,
+    modalEl,deleteRecurEl,
     showHelp?ce(HelpModal,{onClose:function(){setShowHelp(false);}}):null
   );
 }
