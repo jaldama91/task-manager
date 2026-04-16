@@ -120,12 +120,72 @@ function addInt(d,r){
     return dt.toISOString().slice(0,10);
   }
   if(p[0]==="QUARTERLY"){
-    // p[1] = MM-DD (the day within each quarter)
+    // p[1] = MM-DD where MM is month within quarter (1=first month, 2=second, 3=third)
     var qparts=p[1].split("-");
-    var qmonth=parseInt(qparts[0])-1; // 0-based target month within quarter
-    dt.setMonth(dt.getMonth()+3);
-    // Set to the same day-of-quarter pattern
-    dt.setDate(parseInt(qparts[1]));
+    var qMonthOffset=parseInt(qparts[0])-1; // 0 = first month of quarter, 1 = second, 2 = third
+    var qDay=parseInt(qparts[1]);
+    // Find the start of the current quarter
+    var qStartMonth=Math.floor(dt.getMonth()/3)*3;
+    // Add the within-quarter month offset
+    dt.setMonth(qStartMonth+qMonthOffset);
+    dt.setDate(qDay);
+    var result=dt.toISOString().slice(0,10);
+    // If result is <= input date, advance to next quarter
+    if(result<=d){
+      dt.setMonth(qStartMonth+qMonthOffset+3);
+      dt.setDate(qDay);
+      result=dt.toISOString().slice(0,10);
+    }
+    return result;
+  }
+  return null;
+}
+
+// addDeadlineOffset: compute deadline date ON OR AFTER repeatDate, staying in the same cycle
+// Unlike addInt which always advances to the next occurrence
+function addDeadlineOffset(repeatDate, offsetRule){
+  if(!repeatDate||!offsetRule||offsetRule==="None") return null;
+  var dt=new Date(repeatDate+"T12:00:00");
+  var p=offsetRule.split(":");
+  if(p[0]==="EVERY_N"){
+    dt.setDate(dt.getDate()+parseInt(p[1]));
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="WEEKLY"){
+    var targetDay=DAYS.indexOf(p[1]);
+    while(dt.getDay()!==targetDay) dt.setDate(dt.getDate()+1);
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="MONTHLY_DATE"){
+    var day=parseInt(p[1]);
+    dt.setDate(day);
+    if(dt.toISOString().slice(0,10)<repeatDate){dt.setMonth(dt.getMonth()+1);dt.setDate(day);}
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="MONTHLY_DAY"){
+    var nth=parseInt(p[1]),wday=DAYS.indexOf(p[2]);
+    dt.setDate(1);var count=0;
+    while(count<nth){if(dt.getDay()===wday)count++;if(count<nth)dt.setDate(dt.getDate()+1);}
+    if(dt.toISOString().slice(0,10)<repeatDate){
+      dt.setMonth(dt.getMonth()+1);dt.setDate(1);count=0;
+      while(count<nth){if(dt.getDay()===wday)count++;if(count<nth)dt.setDate(dt.getDate()+1);}
+    }
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="YEARLY"){
+    var parts=p[1].split("-");
+    dt.setMonth(parseInt(parts[0])-1);dt.setDate(parseInt(parts[1]));
+    if(dt.toISOString().slice(0,10)<repeatDate){
+      dt.setFullYear(dt.getFullYear()+1);dt.setMonth(parseInt(parts[0])-1);dt.setDate(parseInt(parts[1]));
+    }
+    return dt.toISOString().slice(0,10);
+  }
+  if(p[0]==="QUARTERLY"){
+    var qp=p[1].split("-");
+    var qMO=parseInt(qp[0])-1;var qD=parseInt(qp[1]);
+    var qSM=Math.floor(dt.getMonth()/3)*3;
+    dt.setMonth(qSM+qMO);dt.setDate(qD);
+    if(dt.toISOString().slice(0,10)<repeatDate){dt.setMonth(qSM+qMO+3);dt.setDate(qD);}
     return dt.toISOString().slice(0,10);
   }
   return null;
@@ -150,7 +210,7 @@ function generateOccurrences(tasks, startStr, endStr){
       if(cur>end) break;
       if(cur>=startStr){
         var deadline=null;
-        if(t.recur_deadline&&t.recur_deadline!=="None") deadline=addInt(cur,t.recur_deadline);
+        if(t.recur_deadline&&t.recur_deadline!=="None") deadline=addDeadlineOffset(cur,t.recur_deadline);
         result.push(Object.assign({},t,{
           id:t.id+"__"+cur,
           _startDate:cur,
@@ -346,7 +406,7 @@ function recurStatus(t, today){
   // Compute deadline
   var deadline=null;
   if(t.recur_deadline&&t.recur_deadline!=="None"){
-    deadline=addInt(repeatDate,t.recur_deadline);
+    deadline=addDeadlineOffset(repeatDate,t.recur_deadline);
   }
   var show=today>=repeatDate;
   var pastDue=!!(deadline&&today>deadline);
@@ -712,7 +772,7 @@ function TaskModal(props){
           Ico("recur",13,RC.tx),
           ce("span",{style:{fontSize:12,color:RC.tx}},
             "First occurrence: "+fmt(f.recur_start)+
-            (f.recur_deadline&&f.recur_deadline!=="None"?" · Deadline: "+fmt(addInt(f.recur_start,f.recur_deadline)):"")
+            (f.recur_deadline&&f.recur_deadline!=="None"?" · Deadline: "+fmt(addDeadlineOffset(f.recur_start,f.recur_deadline)):"")
           )
         ):null
       ):null,
@@ -1044,7 +1104,7 @@ function QuarterlyView(props){
       if(t.recur&&t.recur!=="None"&&baseDate){
         // Include baseDate itself if it falls in this year
         if(baseDate.slice(0,4)===String(year)){
-          var bDue=t.recur_deadline&&t.recur_deadline!=="None"?addInt(baseDate,t.recur_deadline)||baseDate:baseDate;
+          var bDue=t.recur_deadline&&t.recur_deadline!=="None"?addDeadlineOffset(baseDate,t.recur_deadline)||baseDate:baseDate;
           expanded.push(Object.assign({},t,{id:t.id+"_"+baseDate,due:bDue,_startDate:baseDate,_expanded:false,_baseId:t.id}));
         }
         var cur=baseDate;
@@ -1055,7 +1115,7 @@ function QuarterlyView(props){
           if(!next)break;
           if(next.slice(0,4)>String(year))break;
           if(next.slice(0,4)===String(year)&&next!==baseDate){
-            var qDue=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next,t.recur_deadline)||next:next;
+            var qDue=t.recur_deadline&&t.recur_deadline!=="None"?addDeadlineOffset(next,t.recur_deadline)||next:next;
             expanded.push(Object.assign({},t,{id:t.id+"_"+next,due:qDue,_startDate:next,_expanded:true,_baseId:t.id}));
           }
           cur=next;
@@ -1070,7 +1130,7 @@ function QuarterlyView(props){
             if(!next2)break;
             if(next2.slice(0,4)>String(year))break;
             if(next2.slice(0,4)===String(year)){
-              var qDue2=t.recur_deadline&&t.recur_deadline!=="None"?addInt(next2,t.recur_deadline)||next2:next2;
+              var qDue2=t.recur_deadline&&t.recur_deadline!=="None"?addDeadlineOffset(next2,t.recur_deadline)||next2:next2;
               expanded.push(Object.assign({},t,{id:t.id+"_"+next2,due:qDue2,_startDate:next2,_expanded:true,_baseId:t.id}));
             }
             cur2=next2;
