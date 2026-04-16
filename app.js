@@ -132,62 +132,41 @@ function addInt(d,r){
 }
 
 
-// ── Generate virtual occurrences of recurring tasks ────────────────────────
-// Returns array of virtual task objects with _virtual:true and _baseId set
-// Generates occurrences from startDate to endDate (strings YYYY-MM-DD)
+// ── Generate virtual occurrences for Monthly/Quarterly views ──────────────
+// Only used for calendar/quarterly expansion — NOT for board view
+// Board view uses recurStatus() directly instead
 function generateOccurrences(tasks, startStr, endStr){
-  var result = [];
-  var start = new Date(startStr+"T00:00:00");
-  var end   = new Date(endStr+"T23:59:59");
+  var result=[];
+  var end=endStr;
   tasks.forEach(function(t){
-    if(!t.recur || t.recur==="None" || !t.due) return;
-    // Walk forward from due date generating occurrences within window
-    var cur = t.due;
-    var safety = 0;
-    // First, walk backward if due date is after start (to catch patterns that started before window)
-    // Actually just walk forward from due date
-    // If due date is after end, skip
-    if(new Date(cur+"T00:00:00") > end) return;
-    while(safety < 200){
+    if(!t.recur||t.recur==="None") return;
+    var anchor=t.recur_start||t.due||"";
+    if(!anchor) return;
+    // Walk all occurrences within the window
+    var cur=anchor;
+    var safety=0;
+    while(safety<500){
       safety++;
-      var next = addInt(cur, t.recur);
-      if(!next) break;
-      var nd = new Date(next+"T00:00:00");
-      if(nd > end) break;
-      if(nd >= start){
-        // Check this date isn't already a real task (same recur_id + due)
-        var alreadyExists = tasks.some(function(r){
-          return r.recur_id === t.id && r.due === next;
-        });
-        if(!alreadyExists){
-          // If task has a deadline offset, compute the actual due date
-        var actualDue=next;
-        if(t.recur_deadline&&t.recur_deadline!=="None"){
-          actualDue=addInt(next,t.recur_deadline)||next;
-        }
-        result.push(Object.assign({}, t, {
-            id: t.id+"__"+next,
-            due: actualDue,
-            _startDate: next,
-            status: "To Do",
-            _virtual: true,
-            _baseId: t.id,
-            subtasks: t.subtasks ? t.subtasks.map(function(s){return Object.assign({},s,{done:false});}) : []
-          }));
-        }
+      if(cur>end) break;
+      if(cur>=startStr){
+        var deadline=null;
+        if(t.recur_deadline&&t.recur_deadline!=="None") deadline=addInt(cur,t.recur_deadline);
+        result.push(Object.assign({},t,{
+          id:t.id+"__"+cur,
+          _startDate:cur,
+          due:deadline||cur,
+          status:"To Do",
+          _virtual:true,
+          _baseId:t.id,
+          subtasks:t.subtasks?t.subtasks.map(function(s){return Object.assign({},s,{done:false});}):[]
+        }));
       }
-      cur = next;
+      var next=addInt(cur,t.recur);
+      if(!next||next<=cur) break;
+      cur=next;
     }
   });
   return result;
-}
-
-// Get date range for board view — only 30 days ahead for recurring tasks
-function getBoardWindow(){
-  var now = new Date();
-  var start = now.toISOString().slice(0,10);
-  var end = new Date(now.getTime() + 30*24*60*60*1000).toISOString().slice(0,10);
-  return {start:start, end:end};
 }
 
 // ── RecurPicker component ──────────────────────────────────────────────────
@@ -302,27 +281,76 @@ function dbToTask(row){
     due:row.due||"", status:row.status, notes:row.notes||"",
     subtasks:row.subtasks||[], recur:row.recur||"None",
     recur_deadline:row.recur_deadline||"None",
+    recur_start:row.recur_start||"",
+    last_completed:row.last_completed||"",
     by:row.by_user, to:row.to_user, shared:!!row.shared,
     created_at:row.created_at||"",
     comments:row.comments||[]
   };
 }
-// displayDate: the date used for calendar/quarterly bucketing
-// Use due date if set, otherwise fall back to created_at date
+// displayDate: for calendar/quarterly bucketing
+// Recurring tasks use recur_start; non-recurring use due then created_at
 function displayDate(t){
   if(t._startDate) return t._startDate;
+  if(t.recur&&t.recur!=="None"&&t.recur_start) return t.recur_start;
   if(t.due) return t.due;
   if(t.created_at) return t.created_at.slice(0,10);
   return null;
 }
 function taskToDb(t,byUser){
   return {
-    title:t.title, ctx:t.ctx, pri:t.pri, due:t.due||null,
+    title:t.title, ctx:t.ctx, pri:t.pri,
+    due:(t.recur&&t.recur!=="None")?null:(t.due||null),
     status:t.status, notes:t.notes||"", subtasks:t.subtasks||[],
     recur:t.recur||"None", recur_deadline:t.recur_deadline||"None",
+    recur_start:(t.recur&&t.recur!=="None")?(t.recur_start||t.due||null):null,
+    last_completed:t.last_completed||null,
     private_notes:t.private_notes||"", notify_notes:t.notify_notes||"", comments:t.comments||[],
     by_user:byUser||t.by||t.by_user, to_user:t.to||t.to_user, shared:!!t.shared
   };
+}
+
+// ── Recur occurrence helpers ───────────────────────────────────────────────
+// Given a recur_start anchor and recur pattern, walk forward to find
+// the next occurrence ON OR AFTER fromDate
+function getNextOccurrence(recur_start, recur, fromDate){
+  if(!recur_start||!recur||recur==="None") return null;
+  var cur=recur_start;
+  var safety=0;
+  // If start is already >= fromDate, that IS the next occurrence
+  if(cur>=fromDate) return cur;
+  while(safety<500){
+    safety++;
+    var next=addInt(cur,recur);
+    if(!next||next<=cur) break;
+    if(next>=fromDate) return next;
+    cur=next;
+  }
+  return cur;
+}
+
+// Is a recurring task active today? Returns {show, pastDue, repeatDate, deadline}
+function recurStatus(t, today){
+  if(!t.recur||t.recur==="None") return {show:false};
+  var anchor=t.recur_start||t.due||t.created_at&&t.created_at.slice(0,10);
+  if(!anchor) return {show:false};
+  // Find the current repeat date (next occurrence on or after anchor)
+  var repeatDate=getNextOccurrence(anchor, t.recur, anchor);
+  // Advance past already-completed cycles
+  while(repeatDate&&t.last_completed&&t.last_completed>=repeatDate){
+    var nx=addInt(repeatDate,t.recur);
+    if(!nx||nx===repeatDate) break;
+    repeatDate=nx;
+  }
+  if(!repeatDate) return {show:false};
+  // Compute deadline
+  var deadline=null;
+  if(t.recur_deadline&&t.recur_deadline!=="None"){
+    deadline=addInt(repeatDate,t.recur_deadline);
+  }
+  var show=today>=repeatDate;
+  var pastDue=!!(deadline&&today>deadline);
+  return {show:show, pastDue:pastDue, repeatDate:repeatDate, deadline:deadline};
 }
 
 // ── ce helper ──────────────────────────────────────────────────────────────
@@ -468,11 +496,13 @@ function CardInner(props){
   var cc=CTC[task.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
   var cm=CC[task.status]||CC["To Do"];
   var lbl=ctxLbl(task.ctx);
-  var over=!!(task.due&&new Date(task.due)<new Date()&&task.status!=="Done");
+  var today=new Date().toISOString().slice(0,10);
   var rec=!!(task.recur&&task.recur!=="None");
   var recLbl=recurLabel(task.recur);
+  var rs=rec?recurStatus(task,today):{show:false,pastDue:false};
+  var over=rec?rs.pastDue:!!(task.due&&task.due<today&&task.status!=="Done");
   var done=task.subtasks.filter(function(s){return s.done;}).length;
-  var can=!!(USERS[cu]&&USERS[cu].ctxs.indexOf(task.ctx)>=0&&!task._virtual);
+  var can=!!(USERS[cu]&&(USERS[cu].ctxs.indexOf(task.ctx)>=0||(task.recur&&task.recur!=="None"))&&!task._virtual);
   var isShared=!!(task.shared&&isPers(task.ctx));
   var moveCols=COLS.filter(function(c){return c!==task.status;});
 
@@ -482,11 +512,10 @@ function CardInner(props){
     textTransform:"uppercase",flexShrink:0,display:"inline-flex",alignItems:"center",gap:3
   }},Ico("warn",10,"#fff")," PAST DUE"):null;
   var duePill=task.due?Tag(over?"#FEE2E2":"#F2F2F0",over?"#991B1B":"#666",over?"#FCA5A5":"#DDD",[Ico(over?"warn":"cal",11,over?"#991B1B":"#999"),ce("span",{key:"d",style:{marginLeft:2}},fmt(task.due))]):null;
-  // Period label: for recurring show "for MM/DD/YY", for all show created date if no due date
   var periodLbl=null;
-  if(rec&&task.due){
-    periodLbl=Tag("#F0F9FF","#0369A1","#BAE6FD",[ce("span",{key:"p",style:{fontSize:10,fontWeight:600}},"for "+fmt(task.due))]);
-  } else if(!task.due&&task.created_at){
+  if(rec&&rs.repeatDate){
+    periodLbl=Tag("#F0F9FF","#0369A1","#BAE6FD",[ce("span",{key:"p",style:{fontSize:10,fontWeight:600}},"for "+fmt(rs.repeatDate))]);
+  } else if(!rec&&!task.due&&task.created_at){
     periodLbl=Tag("#F8FAFC","#64748B","#E2E8F0",[Ico("cal",10,"#94A3B8"),ce("span",{key:"c",style:{marginLeft:2,fontSize:10}},fmt(task.created_at.slice(0,10)))]);
   }
   var virtPill=task._virtual?Tag(RC.bg,RC.tx,RC.bd,[Ico("recur",10,RC.tx),ce("span",{key:"v",style:{marginLeft:2}},"upcoming")]):null;
@@ -506,7 +535,7 @@ function CardInner(props){
       );
     });
     var moveBtns=can?moveCols.map(function(col){
-      return ce("button",{key:col,onClick:function(){if(col==="Done"&&rec){props.onComplete(task);}else{props.onMove(task.id,col);}},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"5px 10px",borderRadius:7,border:"0.5px solid #2AD87088",background:"#E8FBF1",cursor:"pointer",color:MD}},
+      return ce("button",{key:col,onClick:function(){if(col==="Done"){props.onComplete(task);}else{props.onMove(task.id,col);}},style:{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"5px 10px",borderRadius:7,border:"0.5px solid #2AD87088",background:"#E8FBF1",cursor:"pointer",color:MD}},
         Ico("move",12,MD)," > "+col
       );
     }):[];
@@ -525,7 +554,7 @@ function CardInner(props){
         ),
         subItems
       ):null,
-      rec&&task.due?ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 10px",background:RC.bg,borderRadius:7}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},recLbl+" · Next: "+fmt(addInt(task.due,task.recur)))):null,
+      rec?ce("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:10,padding:"6px 10px",background:RC.bg,borderRadius:7}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},recLbl+(rs.repeatDate?" · Active: "+fmt(rs.repeatDate):"")+(rs.deadline?" · Deadline: "+fmt(rs.deadline):""))):null,
       ce("div",{style:{marginTop:8,borderTop:"0.5px solid #EEE",paddingTop:8}},
         ce("div",{style:{fontSize:11,fontWeight:600,color:"#aaa",marginBottom:6,textTransform:"uppercase",letterSpacing:".04em"}},"Activity"),
         (task.comments||[]).map(function(cm,i){
@@ -588,7 +617,7 @@ function TaskModal(props){
   var task=props.task,cu=props.cu;
   var uctxs=USERS[cu]?USERS[cu].ctxs:(USERS["Jhonatan"].ctxs);
   var defCtx=uctxs[0]||NI[0];
-  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",notes:"",private_notes:"",notify_notes:"",subtasks:[],recur:"None",recur_deadline:"None",comments:[],by:cu,to:cu,shared:false,status:"To Do"};
+  var blank={title:"",ctx:defCtx,pri:"Medium",due:"",recur_start:"",notes:"",private_notes:"",notify_notes:"",subtasks:[],recur:"None",recur_deadline:"None",last_completed:"",comments:[],by:cu,to:cu,shared:false,status:"To Do"};
   var initF=task?Object.assign({},task,{subtasks:task.subtasks.map(function(s){return Object.assign({},s);})}):blank;
   var [f,setF]=useState(initF);
   var [stxt,setStxt]=useState("");
@@ -663,20 +692,29 @@ function TaskModal(props){
       ce("div",{style:{marginBottom:14,display:"flex",flexDirection:"column",gap:10}},catNodes),
       ce("label",{style:lb},"Priority"),
       ce("div",{style:{display:"flex",gap:6,marginBottom:14}},PK.map(function(p){var pc=PRI[p],a=f.pri===p;return ce("button",{key:p,onClick:function(){set("pri",p);},style:{flex:1,padding:"7px 0",borderRadius:7,border:a?"1.5px solid "+pc.bd:"0.5px solid #DDD",background:a?pc.bg:"#F7F7F6",cursor:"pointer"}},ce("span",{style:{fontSize:12,fontWeight:700,color:a?pc.tx:"#aaa"}},pc.lbl));})),
-      ce("div",{style:{marginBottom:14}},
-        ce("div",null,ce("label",{style:lb},"Due date"),ce("input",{type:"date",style:inp,value:f.due,onChange:function(e){set("due",e.target.value);}}))
-      ),
       ce("label",{style:lb},"Repeats"),
-      ce("div",{style:{marginBottom:f.recur!=="None"?8:14}},ce(RecurPicker,{value:f.recur,onChange:function(v){set("recur",v);if(v==="None")set("recur_deadline","None");}})),
+      ce("div",{style:{marginBottom:f.recur!=="None"?8:14}},ce(RecurPicker,{value:f.recur,onChange:function(v){set("recur",v);if(v==="None"){set("recur_deadline","None");set("recur_start","");}}})),
       f.recur!=="None"?ce("div",{style:{marginBottom:14}},
-        ce("label",{style:{fontSize:12,color:"#666",display:"block",marginBottom:4,fontWeight:500}},"Deadline (days after repeat starts)"),
+        ce("div",{style:{marginBottom:10}},
+          ce("label",{style:lb},"Repeat starts"),
+          ce("input",{type:"date",style:inp,value:f.recur_start||"",onChange:function(e){set("recur_start",e.target.value);}})
+        ),
+        ce("label",{style:{fontSize:12,color:"#666",display:"block",marginBottom:4,fontWeight:500}},"Deadline offset (after repeat date)"),
         ce("div",{style:{background:"#F7F7F6",borderRadius:8,padding:"10px 12px",border:"0.5px solid #EEE"}},
-          ce("div",{style:{fontSize:11,color:"#888",marginBottom:6}},"When is the task due relative to when it repeats? e.g. repeats Monday, due by Wednesday"),
+          ce("div",{style:{fontSize:11,color:"#888",marginBottom:6}},"e.g. repeats Wednesday, deadline 2 days later = Friday"),
           ce(RecurPicker,{value:f.recur_deadline||"None",onChange:function(v){set("recur_deadline",v);}})
         ),
-        f.due&&f.recur_deadline&&f.recur_deadline!=="None"?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginTop:8}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next: "+fmt(addInt(f.due,f.recur))+" · Due: "+fmt(addInt(addInt(f.due,f.recur),f.recur_deadline)))):null
+        (f.recur_start)?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginTop:8}},
+          Ico("recur",13,RC.tx),
+          ce("span",{style:{fontSize:12,color:RC.tx}},
+            "First occurrence: "+fmt(f.recur_start)+
+            (f.recur_deadline&&f.recur_deadline!=="None"?" · Deadline: "+fmt(addInt(f.recur_start,f.recur_deadline)):"")
+          )
+        ):null
       ):null,
-      f.recur!=="None"&&f.due&&(!f.recur_deadline||f.recur_deadline==="None")?ce("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:RC.bg,borderRadius:7,marginBottom:14}},Ico("recur",13,RC.tx),ce("span",{style:{fontSize:12,color:RC.tx}},"Next: "+fmt(addInt(f.due,f.recur)))):null,
+      f.recur==="None"?ce("div",{style:{marginBottom:14}},
+        ce("div",null,ce("label",{style:lb},"Due date"),ce("input",{type:"date",style:inp,value:f.due||"",onChange:function(e){set("due",e.target.value);}}))
+      ):null,
       ce("label",{style:lb},"Assign to"),
       assignSection,
       ce("div",{style:{marginBottom:14}},
@@ -783,16 +821,16 @@ function Sidebar(props){
   var uctxs=USERS[cu]?USERS[cu].ctxs:AI.filter(function(x){return PI.indexOf(x)<0;});
   var [exp,setExp]=useState({N:false,K:false,P:true});
   function cnt(arr){
+    var td=new Date().toISOString().slice(0,10);
     return tasks.filter(function(t){
       if(arr.indexOf(t.ctx)<0)return false;
       if(t.status==="Done")return false;
       if(t._virtual)return false;
-      // Respect assigned-to filter
       if(af!=="All"&&t.to!==af&&!t.shared)return false;
-      // Respect 30-day recurring cutoff
-      if(t.recur&&t.recur!=="None"&&t.due){
-        var cutoff=new Date();cutoff.setDate(cutoff.getDate()+30);
-        if(new Date(t.due+"T00:00:00")>cutoff)return false;
+      // For recurring: only count if active today
+      if(t.recur&&t.recur!=="None"){
+        var rs=recurStatus(t,td);
+        return rs.show;
       }
       return true;
     }).length;
@@ -935,7 +973,9 @@ function RecurringView(props){
     var pc=PC[t.ctx.split(":")[0]]||{ac:"#888",bg:"#F5F5F5",tx:"#333"};
     var parentLabel=ctxParent(t.ctx);
     var lbl=recurLabel(t.recur);
-    var next=t.due?addInt(t.due,t.recur):null;
+    var todayRV=new Date().toISOString().slice(0,10);
+    var rsRV=recurStatus(t,todayRV);
+    var next=rsRV.repeatDate?addInt(rsRV.repeatDate,t.recur):null;
     return ce("div",{key:t.id,style:{background:WH,border:"0.5px solid #E2E2E0",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"flex-start",gap:10,flexWrap:"wrap"}},
       // Parent category circle bubble
       ce("div",{style:{width:36,height:36,borderRadius:"50%",background:pc.bg,border:"1.5px solid "+pc.ac+"55",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
@@ -948,12 +988,18 @@ function RecurringView(props){
           ce("span",{style:{fontSize:11,padding:"1px 7px",borderRadius:4,background:RC.bg,color:RC.tx,display:"flex",alignItems:"center",gap:3}},Ico("recur",10,RC.tx),lbl)
         )
       ),
-      ce("div",{style:{fontSize:12,color:"#888",minWidth:100}},
-        t.due?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Current due"),ce("div",{style:{fontWeight:500,color:BLK}},fmt(t.due))):ce("div",{style:{color:"#ccc"}},"No due date")
+      ce("div",{style:{fontSize:12,color:"#888",minWidth:90}},
+        rsRV.repeatDate?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Active from"),ce("div",{style:{fontWeight:500,color:rsRV.pastDue?"#DC2626":BLK}},fmt(rsRV.repeatDate))):ce("div",{style:{color:"#ccc"}},"No start set")
       ),
-      ce("div",{style:{fontSize:12,color:"#888",minWidth:100}},
-        next?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Next occurrence"),ce("div",{style:{fontWeight:500,color:MD}},fmt(next))):null
+      ce("div",{style:{fontSize:12,color:"#888",minWidth:90}},
+        rsRV.deadline?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Deadline"),ce("div",{style:{fontWeight:500,color:BLK}},fmt(rsRV.deadline))):null
       ),
+      ce("div",{style:{fontSize:12,color:"#888",minWidth:90}},
+        next?ce("div",null,ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Next cycle"),ce("div",{style:{fontWeight:500,color:MD}},fmt(next))):null
+      ),
+      t.last_completed?ce("div",{style:{fontSize:12,color:"#888",minWidth:90}},
+        ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Last done"),ce("div",{style:{fontWeight:500,color:"#555"}},fmt(t.last_completed))
+      ):null,
       ce("div",null,Av(t.to,20)),
       ce("button",{onClick:function(){setEditT(t);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#555",display:"flex",alignItems:"center",gap:4}},Ico("edit",12)," Edit")
     );
@@ -980,14 +1026,11 @@ function QuarterlyView(props){
   function expandRecurring(tasks,year){
     var expanded=[];
     tasks.forEach(function(t){
-      var baseDate=t.due||(t.created_at?t.created_at.slice(0,10):"");
+      var baseDate=t.recur_start||t.due||(t.created_at?t.created_at.slice(0,10):"");
       if(!baseDate)return;
-      // Include base task if it falls in this year (by displayDate)
-      var dd=displayDate(t)||(t.created_at?t.created_at.slice(0,10):"");
-      if(dd&&dd.slice(0,4)===String(year)){
-        expanded.push(Object.assign({},t,{_expanded:false}));
-      } else if((!t.recur||t.recur==="None")){
-        // Non-recurring tasks only show in their own year
+      // Non-recurring: show in their own year only
+      if(!t.recur||t.recur==="None"){
+        var dd=t.due||(t.created_at?t.created_at.slice(0,10):"");
         if(dd&&dd.slice(0,4)===String(year)) expanded.push(Object.assign({},t,{_expanded:false}));
         return;
       }
@@ -1411,10 +1454,9 @@ function App(){
     if(t.shared&&isPers(t.ctx)&&(effectiveCu==="Jhonatan"||effectiveCu==="Sarah")&&cu!=="Gin")return true;
     return false;
   });
-  // Add virtual recurring occurrences (next 90 days) for board/monthly/quarterly
-  var win=getBoardWindow();
-  var virtualOccs=generateOccurrences(realVis.filter(function(t){return t.status!=="Done";}),win.start,win.end);
-  var allVis=realVis.concat(virtualOccs);
+  var todayStr=new Date().toISOString().slice(0,10);
+  // allVis = all tasks visible to this user (no category filter), used for counts
+  var allVis=realVis;
   var base=tasks.filter(function(t){
     var inCtx=actCtxs.indexOf(t.ctx)>=0;
     var isPersonalSel=sel==="All"||sel==="P";
@@ -1422,17 +1464,24 @@ function App(){
     var sv=t.shared&&isPers(t.ctx)&&(cu==="Jhonatan"||cu==="Sarah")&&(isPersonalSel||isMatchingSub)&&cu!=="Gin";
     if(!inCtx&&!sv)return false;
     if(af!=="All"&&!t.shared&&t.to!==af)return false;
-    // In proxy view, show Jhonatan's tasks
     if(proxyView&&cu==="Gin"&&t.ctx&&PI.indexOf(t.ctx)>=0)return false;
-    // Hide recurring tasks on board if due date is more than 30 days away
-    if(t.recur&&t.recur!=="None"&&t.status!=="Done"&&t.due){
-      var cutoff=new Date();cutoff.setDate(cutoff.getDate()+30);
-      if(new Date(t.due+"T00:00:00")>cutoff)return false;
+    // Recurring tasks: show only when active today (recurStatus)
+    if(t.recur&&t.recur!=="None"){
+      if(t.status==="Done") return false; // done recurring tasks don't show on board
+      var rs=recurStatus(t,todayStr);
+      if(!rs.show) return false;
+      return true;
     }
     return true;
   });
-  var todayStr2=new Date().toISOString().slice(0,10);
-  var baseFiltered2=filterPastDue?base.filter(function(t){return t.due&&t.due.slice(0,10)<todayStr2&&t.status!=="Done"&&!t._virtual;}):base;
+  var todayStr2=todayStr;
+  var baseFiltered2=filterPastDue?base.filter(function(t){
+    if(t.recur&&t.recur!=="None"){
+      var rs=recurStatus(t,todayStr2);
+      return rs.pastDue;
+    }
+    return t.due&&t.due.slice(0,10)<todayStr2&&t.status!=="Done";
+  }):base;
   var baseFiltered=dateWindow?baseFiltered2.filter(function(t){
     var d=dateWindowBy==="created"?(t.created_at?t.created_at.slice(0,10):""):displayDate(t);
     if(!d)return false;
@@ -1464,8 +1513,9 @@ function App(){
   }):baseSearched;
 
   var notifyBadge=tasks.filter(function(t){return t.notify_notes&&t.to===cu&&t.status!=="Done"&&!seenNotify[t.id];}).length;
+  // open = non-recurring not-done + recurring active today
   var openCnt=base.filter(function(t){return t.status!=="Done";}).length;
-  var recCnt=base.filter(function(t){return t.recur!=="None"&&t.status!=="Done";}).length;
+  var recCnt=base.filter(function(t){return t.recur&&t.recur!=="None";}).length;
   var mineCnt=base.filter(function(t){return(t.to===effectiveCu||t.shared)&&t.status!=="Done";}).length;
   var vl=getVL(sel);
   var roleLbl=cu==="Gin"?"Work only":cu==="Sarah"?"Personal & Rentals":"Full access";
@@ -1552,7 +1602,16 @@ function App(){
     var ids=doneTasks.map(function(t){return t.id;});
     sb.from("tasks").delete().in("id",ids).then(function(){loadTasks();});
   }
-  function doComplete(task){moveTask(task.id,"Done");}
+  function doComplete(task){
+    if(task.recur&&task.recur!=="None"){
+      // Don't move to Done — just update last_completed so it hides until next cycle
+      var rs=recurStatus(task,new Date().toISOString().slice(0,10));
+      var completedDate=rs.repeatDate||new Date().toISOString().slice(0,10);
+      sb.from("tasks").update({last_completed:completedDate}).eq("id",task.id).then(function(){loadTasks();});
+    } else {
+      moveTask(task.id,"Done");
+    }
+  }
 
   var DM2=darkMode;
   var DMsurface=DM2?"#1E2130":WH;
@@ -1629,7 +1688,7 @@ function App(){
       ce("span",{style:{fontSize:12,color:"#aaa"}},"·"),
       ce("span",{style:{fontSize:12,color:"#888"}},"Your tasks by due date")
     ),
-    ce(CalendarView,{cu:cu,tasks:base.concat(generateOccurrences(base.filter(function(t){return t.status!=="Done"&&!t._virtual;}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
+    ce(CalendarView,{cu:cu,tasks:realVis.filter(function(t){return t.status!=="Done";}).concat(generateOccurrences(realVis.filter(function(t){return t.recur&&t.recur!=="None"&&t.status!=="Done";}),new Date().toISOString().slice(0,10),new Date(new Date().getFullYear(),new Date().getMonth()+18,0).toISOString().slice(0,10))),onTaskClick:function(t){setEditT(t);setModal(true);}})
   );
 
   var isMobile=window.innerWidth<700;
@@ -1734,7 +1793,7 @@ function App(){
       // Main content
       ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
         view==="calendar"?calView:
-        view==="quarterly"?ce(QuarterlyView,{tasks:base,cu:cu,onTaskClick:function(t){setEditT(t);setModal(true);}}):
+        view==="quarterly"?ce(QuarterlyView,{tasks:realVis,cu:cu,onTaskClick:function(t){setEditT(t);setModal(true);}}):
         view==="recurring"?ce(RecurringView,{tasks:base,cu:cu,onReload:loadTasks}):
         view==="notes"?ce(NotesView,{cu:cu}):
         boardView
