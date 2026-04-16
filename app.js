@@ -1000,8 +1000,10 @@ function RecurringView(props){
       t.last_completed?ce("div",{style:{fontSize:12,color:"#888",minWidth:90}},
         ce("div",{style:{fontSize:10,color:"#aaa",marginBottom:1}},"Last done"),ce("div",{style:{fontWeight:500,color:"#555"}},fmt(t.last_completed))
       ):null,
-      ce("div",null,Av(t.to,20)),
-      ce("button",{onClick:function(){setEditT(t);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#555",display:"flex",alignItems:"center",gap:4}},Ico("edit",12)," Edit")
+      ce("div",{style:{display:"flex",gap:6}},
+        ce("button",{onClick:function(){setEditT(t);},style:{background:"none",border:"0.5px solid #DDD",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#555",display:"flex",alignItems:"center",gap:4}},Ico("edit",12)," Edit"),
+        ce("button",{onClick:function(){props.onDel(t);},style:{background:"none",border:"0.5px solid #FCA5A5",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",color:"#DC2626",display:"flex",alignItems:"center",gap:4}},Ico("trash",12)," Delete")
+      )
     );
   });
 
@@ -1764,9 +1766,8 @@ function App(){
   var modalEl=null;
   if(modal){modalEl=ce(TaskModal,{task:editT,cu:effectiveCu,onSave:saveTask,onClose:function(){setModal(false);setEditT(null);},templates:templates,onSaveTemplate:saveTemplate,onDeleteTemplate:deleteTemplate});}
   var recurEl=null;
-  if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
   var deleteRecurEl=null;
-  if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteOne:function(){delOneInstance(deleteRecurT);},onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
+  if(deleteRecurT){deleteRecurEl=ce(DeleteRecurModal,{task:deleteRecurT,onDeleteAll:function(){delAllRecurring(deleteRecurT);},onClose:function(){setDeleteRecurT(null);}});}
 
   return ce("div",{style:{background:darkMode?"#1A1A2E":"#F2F2F0",minHeight:"100vh",padding:14,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",color:darkMode?"#E8E8F0":BLK,transition:"background .2s"}},
     topBar,
@@ -1794,7 +1795,7 @@ function App(){
       ce("div",{style:{flex:1,minWidth:0,overflowX:"auto"}},
         view==="calendar"?calView:
         view==="quarterly"?ce(QuarterlyView,{tasks:realVis,cu:cu,onTaskClick:function(t){setEditT(t);setModal(true);}}):
-        view==="recurring"?ce(RecurringView,{tasks:base,cu:cu,onReload:loadTasks}):
+        view==="recurring"?ce(RecurringView,{tasks:realVis,cu:cu,onReload:loadTasks,onDel:function(t){setDeleteRecurT(t);}}):
         view==="notes"?ce(NotesView,{cu:cu}):
         boardView
       )
