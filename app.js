@@ -464,7 +464,7 @@ function Login(props){
 
 // ── CardInner ──────────────────────────────────────────────────────────────
 function CardInner(props){
-  var task=props.task,cu=props.cu,open=props.open,setOpen=props.setOpen;
+  var task=props.task,cu=props.cu,open=props.open,setOpen=props.setOpen,dm=props.dm||false;
   var cc=CTC[task.ctx]||{bg:"#F2F2F0",tx:"#555",bd:"#DDD"};
   var cm=CC[task.status]||CC["To Do"];
   var lbl=ctxLbl(task.ctx);
@@ -868,7 +868,7 @@ function Sidebar(props){
     );
   });
 
-  return ce("div",{style:{width:190,flexShrink:0,display:"flex",flexDirection:"column",gap:2}},
+  return ce("div",{style:{width:190,flexShrink:0,display:"flex",flexDirection:"column",gap:2,paddingTop:4}},
     allBtn,nodeEls,
     ce("div",{style:{borderTop:"0.5px solid #EEE",marginTop:8,paddingTop:10,display:"flex",flexDirection:"column",gap:1}},
       ce("div",{style:{fontSize:10,fontWeight:600,color:"#aaa",textTransform:"uppercase",letterSpacing:".06em",paddingLeft:10,marginBottom:4}},"Assigned to"),
@@ -1376,24 +1376,32 @@ function App(){
   var [seenNotify,setSeenNotify]=useState({});  // taskId -> true when opened
   var [templates,setTemplates]=useState(function(){try{return JSON.parse(localStorage.getItem("nuve_templates")||"[]");}catch(e){return [];}});
 
-  // Dark mode
+  // Dark mode — inject a CSS stylesheet covering all surfaces
   useEffect(function(){
-    var root=document.documentElement;
+    var id="nuve-dark-style";
+    var el=document.getElementById(id);
+    if(el)el.remove();
     if(darkMode){
-      root.style.setProperty("--bg","#1A1A2E");
-      root.style.setProperty("--surface","#16213E");
-      root.style.setProperty("--border","#2A2A4A");
-      root.style.setProperty("--text","#E8E8F0");
-      document.body.style.background="#1A1A2E";
-      document.body.style.color="#E8E8F0";
-    } else {
-      root.style.removeProperty("--bg");
-      root.style.removeProperty("--surface");
-      root.style.removeProperty("--border");
-      root.style.removeProperty("--text");
-      document.body.style.background="";
-      document.body.style.color="";
+      var s=document.createElement("style");
+      s.id=id;
+      s.textContent=
+        "body{background:#0F1117!important;color:#E8E8F0!important}"+
+        // All inline-styled divs that use white background
+        "div[style*='background: rgb(255, 255, 255)'],div[style*='background:rgb(255,255,255)'],div[style*='background: #fff'],div[style*='background:#fff'],div[style*='background: white']{background:#1E2130!important;border-color:#2A2D3E!important;color:#E8E8F0!important}"+
+        // Text colors
+        "div[style*='color: rgb(17,17,17)'],span[style*='color: rgb(17,17,17)']{color:#E8E8F0!important}"+
+        // Input and textarea
+        "input,textarea,select{background:#1A1E2E!important;color:#E8E8F0!important;border-color:#2A2D3E!important}"+
+        // Borders
+        "div[style*='border: 0.5px solid rgb(226, 226, 224)']{border-color:#2A2D3E!important}"+
+        // Subtle backgrounds
+        "div[style*='background: rgb(247, 247, 246)'],div[style*='background:#F7F7F6'],button[style*='background:#F7F7F6'],button[style*='background: #F7F7F6']{background:#1A1E2E!important;color:#C8CDD8!important}"+
+        "div[style*='background: rgb(242, 242, 240)'],div[style*='background:#F2F2F0']{background:#252836!important}"+
+        "div[style*='background: rgb(250,250,249)'],div[style*='background:#FAFAF9']{background:#1A1D2A!important}";
+      document.head.appendChild(s);
     }
+    document.body.style.background=darkMode?"#0F1117":"";
+    document.body.style.color=darkMode?"#E8E8F0":"";
   },[darkMode]);
 
   // Keyboard shortcuts
@@ -1407,12 +1415,10 @@ function App(){
     return function(){window.removeEventListener("keydown",onKey);};
   },[modal,showHelp]);
 
-  // Tab title: overdue count
+  // Tab title: always Nuve Task Tracker
   useEffect(function(){
-    if(!cu)return;
-    var overdue=tasks.filter(function(t){return t.due&&t.due<new Date().toISOString().slice(0,10)&&t.status!=="Done";}).length;
-    document.title=overdue>0?overdue+" overdue · Nuve Task Tracker":"Nuve Task Tracker";
-  },[tasks,cu]);
+    document.title="Nuve Task Tracker";
+  },[]);
 
   // load tasks from supabase
   var loadTasks=useCallback(function(){
@@ -1579,15 +1585,24 @@ function App(){
   }
   function doComplete(task){if(task.recur&&task.recur!=="None"){setRecurT(task);}else{moveTask(task.id,"Done");}}
   function spawnNext(){
-    var t=recurT,nd=addInt(t.due,t.recur);
-    // Mark completed instance as Done and strip recur so it's just a completed task
+    var t=recurT;
+    var nextStart=addInt(t.due,t.recur);
+    // due on the new task = nextStart (the recurrence day, e.g. next Wednesday)
+    // The deadline offset is handled by recur_deadline on the task itself
+    // This ensures the 30-day board filter compares against the START date, not the deadline
     sb.from("tasks").update({status:"Done",recur:"None"}).eq("id",t.id).then(function(){
-      var newTask=taskToDb(Object.assign({},t,{status:"To Do",due:nd,subtasks:t.subtasks.map(function(s){return Object.assign({},s,{done:false});})}),t.by);
+      var newTask=taskToDb(Object.assign({},t,{status:"To Do",due:nextStart,subtasks:t.subtasks.map(function(s){return Object.assign({},s,{done:false});})}),t.by);
       sb.from("tasks").insert([newTask]).then(function(){loadTasks();});
     });
     setRecurT(null);
   }
 
+  var DM2=darkMode;
+  var DMsurface=DM2?"#1E2130":WH;
+  var DMborder=DM2?"#2A2D3E":"#E2E2E0";
+  var DMtext=DM2?"#E8E8F0":BLK;
+  var DMmuted=DM2?"#8892A4":"#666";
+  var DMsubtle=DM2?"#141620":"#F7F7F6";
   var statEls=[{lb:"open",v:openCnt,bg:"#F2F2F0",tc:"#444",bc:"#DDD"},{lb:"recurring",v:recCnt,bg:RC.bg,tc:RC.tx,bc:RC.bd},{lb:"mine",v:mineCnt,bg:"#E0F7EE",tc:MD,bc:MB}].map(function(s){
     return ce("div",{key:s.lb,style:{textAlign:"center",padding:"5px 11px",background:s.bg,borderRadius:8,border:"0.5px solid "+s.bc}},
       ce("div",{style:{fontSize:16,fontWeight:600,lineHeight:1.1,color:s.tc}},s.v),
@@ -1676,7 +1691,7 @@ function App(){
       svg(sideOpen?["M3 5h10","M3 8h7","M3 11h4"]:["M3 5h10","M3 8h10","M3 11h10"],15,15,sideOpen?MD:"#666")
     ),
     // Logo
-    ce("img",{src:LOGO_SVG,alt:"Nuve",style:{height:18,width:"auto",flexShrink:0}}),
+    ce("img",{src:darkMode?LOGO_WHITE:LOGO_SVG,alt:"Nuve",style:{height:18,width:"auto",flexShrink:0}}),
     // Stats chips
     ce("div",{style:{display:"flex",gap:5,alignItems:"center"}},statEls),
     // Spacer
@@ -1742,7 +1757,7 @@ function App(){
     ce("div",{style:{display:"flex",gap:12,alignItems:"flex-start",position:"relative"}},
       // Sidebar — on mobile overlays as a drawer, on desktop stays inline
       sideOpen?ce("div",{style:{
-        background:WH,borderRadius:12,padding:"20px 10px 12px",border:"0.5px solid #E2E2E0",flexShrink:0,
+        background:DMsurface,borderRadius:12,padding:"20px 10px 12px",border:"0.5px solid "+DMborder,flexShrink:0,
         position:window.innerWidth<700?"fixed":"relative",
         top:window.innerWidth<700?0:undefined,
         left:window.innerWidth<700?0:undefined,
