@@ -780,6 +780,7 @@ function DeleteRecurModal(props){
 // ── Sidebar ────────────────────────────────────────────────────────────────
 function Sidebar(props){
   var cu=props.cu,sel=props.sel,tasks=props.tasks,af=props.af,setAf=props.setAf;
+  var uctxs=USERS[cu]?USERS[cu].ctxs:AI.filter(function(x){return PI.indexOf(x)<0;});
   var [exp,setExp]=useState({N:false,K:false,P:true});
   function cnt(arr){
     return tasks.filter(function(t){
