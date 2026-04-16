@@ -780,9 +780,22 @@ function DeleteRecurModal(props){
 // ── Sidebar ────────────────────────────────────────────────────────────────
 function Sidebar(props){
   var cu=props.cu,sel=props.sel,tasks=props.tasks,af=props.af,setAf=props.setAf;
-  var uctxs=USERS[cu]?USERS[cu].ctxs:AI.filter(function(x){return PI.indexOf(x)<0;});
   var [exp,setExp]=useState({N:false,K:false,P:true});
-  function cnt(arr){return tasks.filter(function(t){return arr.indexOf(t.ctx)>=0&&t.status!=="Done";}).length;}
+  function cnt(arr){
+    return tasks.filter(function(t){
+      if(arr.indexOf(t.ctx)<0)return false;
+      if(t.status==="Done")return false;
+      if(t._virtual)return false;
+      // Respect assigned-to filter
+      if(af!=="All"&&t.to!==af&&!t.shared)return false;
+      // Respect 30-day recurring cutoff
+      if(t.recur&&t.recur!=="None"&&t.due){
+        var cutoff=new Date();cutoff.setDate(cutoff.getDate()+30);
+        if(new Date(t.due+"T00:00:00")>cutoff)return false;
+      }
+      return true;
+    }).length;
+  }
   function togExp(id){setExp(function(e){return Object.assign({},e,{[id]:!e[id]});});}
   var nodes=TREE.filter(function(n){return n.subs.some(function(c){return uctxs.indexOf(c.id)>=0;});});
   var allCnt=cnt(uctxs);
@@ -1450,9 +1463,9 @@ function App(){
   }):baseSearched;
 
   var notifyBadge=tasks.filter(function(t){return t.notify_notes&&t.to===cu&&t.status!=="Done"&&!seenNotify[t.id];}).length;
-  var openCnt=allVis.filter(function(t){return t.status!=="Done";}).length;
-  var recCnt=allVis.filter(function(t){return t.recur!=="None"&&t.status!=="Done";}).length;
-  var mineCnt=allVis.filter(function(t){return(t.to===effectiveCu||t.shared)&&t.status!=="Done";}).length;
+  var openCnt=base.filter(function(t){return t.status!=="Done";}).length;
+  var recCnt=base.filter(function(t){return t.recur!=="None"&&t.status!=="Done";}).length;
+  var mineCnt=base.filter(function(t){return(t.to===effectiveCu||t.shared)&&t.status!=="Done";}).length;
   var vl=getVL(sel);
   var roleLbl=cu==="Gin"?"Work only":cu==="Sarah"?"Personal & Rentals":"Full access";
 
